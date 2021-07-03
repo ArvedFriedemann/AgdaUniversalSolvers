@@ -46,6 +46,8 @@ record Enumerable (A : Set l) (eq : A -> A -> Bool) : Set l where
   total-number : Nat
   total-number = length elems
 
+all-paths-over_of-length_from_ : (eq : A -> A -> Bool) -> (G : Graph F A) -> Nat -> (x : A) -> flip Enumerable {!!} $ exists t st (path-over G from x to t)
+all-paths-over delta of-length n from x = {!!}
 
 
 
