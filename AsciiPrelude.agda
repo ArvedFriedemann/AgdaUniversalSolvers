@@ -1,6 +1,6 @@
 module AsciiPrelude where
 
-open import Agda.Primitive renaming (_⊔_ to _~U~_; Setω to Setw) public
+open import Agda.Primitive using (Level; lzero; lsuc) renaming (_⊔_ to _~U~_; Setω to Setw) public
 
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (refl; trans; sym; cong; cong-app; subst) renaming (_≡_ to _===_) public
