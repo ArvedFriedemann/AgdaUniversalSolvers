@@ -21,6 +21,7 @@ exists-syntax = exists
 syntax exists-syntax (\ x -> B) = exists x st B
 
 open import Data.List public
+open import Data.Bool public
 
 
 --
