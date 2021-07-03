@@ -20,7 +20,7 @@ syntax sigma-syntax A (\ x -> B) = exists x of A st B
 exists-syntax = exists
 syntax exists-syntax (\ x -> B) = exists x st B
 
-
+open import Data.List public
 
 
 --
