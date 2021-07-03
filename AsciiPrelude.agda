@@ -8,7 +8,7 @@ open Eq.≡-Reasoning using (begin_) renaming (_≡⟨⟩_ to _=<>_; step-≡ to
 
 open import Function renaming (_∘_ to _o_) public
 
-open import Data.Product using () renaming (_×_ to _and_; proj₁ to fst; proj₂ to snd) public
+open import Data.Product using (_,_) renaming (_×_ to _and_; proj₁ to fst; proj₂ to snd) public
 
 _-x-_ : forall {a b} -> Set a -> Set b -> Set (a ~U~ b)
 _-x-_ = _and_
@@ -27,7 +27,7 @@ exists-syntax = exists
 syntax exists-syntax (\ x -> B) = exists x st B
 
 
-open import Data.List public
+open import Data.List renaming (_∷_ to _::_) public
 open import Data.Bool using (Bool; true; false; not; _xor_; if_then_else_) renaming (_∧_ to _&&_; _∨_ to _||_; T to Tt) public
 open import Data.Nat renaming (ℕ to Nat) public
 
