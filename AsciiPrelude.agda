@@ -29,6 +29,6 @@ syntax exists-syntax (\ x -> B) = exists x st B
 
 open import Data.List public
 open import Data.Bool using (Bool; true; false; not; _xor_; if_then_else_) renaming (_∧_ to _&&_; _∨_ to _||_; T to Tt) public
-
+open import Data.Nat renaming (ℕ to Nat) public
 
 --
