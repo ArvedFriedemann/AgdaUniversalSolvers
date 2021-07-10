@@ -1,6 +1,6 @@
 module MetaComplexity where
 
-open import AsciiPrelude
+open import AgdaAsciiPrelude.AsciiPrelude
 open import Category.Functor
 open RawFunctor {{...}} public
 
