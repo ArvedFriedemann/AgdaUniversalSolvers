@@ -1,0 +1,3 @@
+[submodule "AgdaAsciiPrelude"]
+	path = AgdaAsciiPrelude
+	url = git@github.com:ArvedFriedemann/AgdaAsciiPrelude.git

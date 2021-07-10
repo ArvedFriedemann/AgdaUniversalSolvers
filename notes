@@ -1,0 +1,3 @@
+Complexity is about proof search: if a proof for an improvement can be created faster than the search would take without it, it has to be placed. Next step is, out of all proofs that can be made, the best possible one. Problem: Trying out more slows down search.
+
+Put the step function up for search. Whenever it has a part implemented, it is applied. Needs to be made sure to run in a safe environment that it can only escape when proof was done.
