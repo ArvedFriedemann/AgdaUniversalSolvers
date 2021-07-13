@@ -29,6 +29,15 @@ eval m (:¬: a) = not (eval m a)
 eval m (a :^: b) = (eval m a) && (eval m b)
 eval m (a :v: b) = (eval m a) || (eval m b)
 
+
+--solver proof
+solver : forall {f} -> f or f
+--(exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
+solver = {!!}
+
+
+
+
 instance
   _ = Maybe.functor
   _ = Maybe.applicative
