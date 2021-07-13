@@ -31,8 +31,7 @@ eval m (a :v: b) = (eval m a) || (eval m b)
 
 
 --solver proof
-solver : forall {f} -> f or f
---(exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
+solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
 solver = {!!}
 
 
