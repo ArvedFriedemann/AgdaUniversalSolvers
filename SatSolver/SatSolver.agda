@@ -1,3 +1,5 @@
+{-# OPTIONS --rewriting #-}
+
 module SatSolver.SatSolver where
 
 open import AgdaAsciiPrelude.AsciiPrelude
@@ -31,6 +33,11 @@ eval m (a :^: b) = (eval m a) && (eval m b)
 eval m (a :v: b) = (eval m a) || (eval m b)
 
 
+
+--solver proof
+-- solver : forall {f : Formula A} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
+-- solver = {!!}
+
 ------------------------------------------------
 --assigns-to
 ------------------------------------------------
@@ -54,8 +61,10 @@ instance
   ...| no ¬x=y = no $ \ jx=jy -> ¬x=y $ just-id jx=jy
 
 assign :
-  {{_ : DecEq A}} -> {{_ : DecEq B}} ->
-  (a : A) -> (b : B) -> (f : A -> Maybe B) -> (True $ f a == just b) -> ((x : A) -> Maybe B)
+  {{_ : DecEq A}} ->
+  (a : A) -> (b : B) -> (f : A -> Maybe B) ->
+  (f a === just b) or (f a === nothing) ->
+  ((x : A) -> Maybe B)
 assign a b f _ x = ifDec x == a then just b else f x
 
 data _assigns-to_ {A : Set l1} {B : Set l2} (f1 : A -> Maybe B) : (f2 : A -> Maybe B) -> Set (l1 ~U~ l2) where
@@ -63,7 +72,8 @@ data _assigns-to_ {A : Set l1} {B : Set l2} (f1 : A -> Maybe B) : (f2 : A -> May
   assigns-trans : {{_ : DecEq A}} {{_ : DecEq B}} ->
                   (fi : A -> Maybe B) ->
                   f1 assigns-to fi ->
-                  (a : A) -> (b : B) -> (safe : True $ fi a == just b) ->
+                  (a : A) -> (b : B) ->
+                  (safe : (fi a === just b) or (fi a === nothing)) ->
                   f1 assigns-to (assign a b fi safe)
 
 ------------------------------------------
@@ -99,13 +109,34 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 --solver
 ------------------------------------------
 
+dec-eq-refl : {x : A} -> {p : Dec (x === x)} -> p === (yes refl)
+dec-eq-refl {p = no ¬x=x} = absurd $ ¬x=x refl
+dec-eq-refl {p = yes refl} = refl
+--{-# REWRITE +dec-eq-refl #-}
 
---solver proof
--- solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
--- solver = {!!}
+ifDec-refl : {a b : B} -> {{decEq : DecEq A}} -> {x : A} -> (ifDec x == x then a else b) === a
+ifDec-refl {x = x} with x == x
+...| yes x=x = refl
+...| no ¬x=x = absurd $ ¬x=x refl
 
-solver' : {{DecEq A}} ->
+
+solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
+  (evalPartial m f === just target) or (evalPartial m f === nothing) ->
   (exists m' st ((m assigns-to m') and (evalPartial m' f === just target))) or
   (forall m' -> m assigns-to m' -> ¬ (evalPartial m' f === just target))
-solver' f m target = {!!}
+solver' f m target (left x) = left (m , assigns-id , x)
+solver' {{decEq = decEq}} (var x) m target (right y) = left (assign x target m (right y) ,
+  assigns-trans m assigns-id x target (right y) ,
+  (begin
+    assign x target m (right y) x
+    =<>
+    ifDec x == x then (just target) else m x
+    =< ifDec-refl {{decEq = decEq}} >
+    just target
+    qed))
+solver' (:¬: f) m target (right y) = {!   !} -- solver' f m (not target) {!!}
+-- let m' = witness (solver' f m target ...)
+-- in solver' f1 m' target ... --TODO: get set of all assignments for backtracking!
+solver' (f1 :^: f2) m target (right y) = {!   !}
+solver' (f1 :v: f2) m target (right y) = {!   !}
