@@ -6,6 +6,7 @@ open import Data.Maybe.Categorical as Maybe
 open import Category.Applicative
 open import Category.Functor
 open import Category.Monad
+open import Relation.Nullary.Decidable.Core using (True; False)
 
 private
   variable
@@ -31,39 +32,36 @@ eval m (a :v: b) = (eval m a) || (eval m b)
 
 
 --solver proof
-solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
-solver = {!!}
+-- solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
+-- solver = {!!}
 
 solver' : forall {f target m} -> (exists m st (eval m f === target)) or (forall m -> ¬ (eval m f === target))
 solver' = {!!}
 
-data _=<mab_ {l} {A : Set l} {B : Set l}: (f1 : A -> Maybe B) -> (f2 : A -> Maybe B) -> Set l where
-  leqmab : (f1 : A -> Maybe B) -> (f2 : A -> Maybe B) -> ((a : A) -> (f1 a === f2 a) or (f1 a === nothing)) -> f1 =<mab f2
+just-id : {x y : A} -> just x === just y -> x === y
+just-id refl = refl
+
+instance
+  mab-dec-eq : {{DecEq A}} -> DecEq (Maybe A)
+  DecEq._==_ mab-dec-eq nothing nothing = yes refl
+  DecEq._==_ mab-dec-eq (just _) nothing = no (\ ())
+  DecEq._==_ mab-dec-eq nothing (just _) = no (\ ())
+  DecEq._==_ mab-dec-eq (just x) (just y) with (x == y)
+  ...| yes x=y = yes (cong just x=y)
+  ...| no ¬x=y = no $ \ jx=jy -> ¬x=y $ just-id jx=jy
 
 assign :
-  (_==_ : DecEq A) ->
-  (f : A -> Maybe B) -> (a : A) -> (b : B) -> (x : A) -> Maybe B
-assign _==_ f a b x = ifDec x == a then just b else f x
+  {{_ : DecEq A}} -> {{_ : DecEq B}} ->
+  (a : A) -> (b : B) -> (f : A -> Maybe B) -> (True $ f a == just b) -> ((x : A) -> Maybe B)
+assign a b f _ x = ifDec x == a then just b else f x
 
-semi-subst : forall {f a b c} -> a === b -> f a === c -> f b === c
-semi-subst refl refl = refl
-
-assign-prop :
-  (_==_ : DecEq A) ->
-  (f : A -> Maybe B) -> (a : A) -> (b : B) -> Dec (f =<mab (assign _==_ f a b))
-assign-prop {A = A} {B = B} _==_ f a b with f a
-...                  | nothing = yes $ leqmab f f' (help refl)
-  where
-        f' : A -> Maybe B
-        f' = assign _==_ f a b
-        help : (f a === nothing) -> (k : A) -> (f k === f' k) or (f k === nothing)
-        help fa=n k with f k
-        ...| nothing = right refl
-        ...| just _ with k == a
-        ...             | yes k=a = semi-subst k=a fa=n
-        ...             | no ¬k=a = left refl
-...                  | just x = {!!}
-
+data _assigns-to_ {A : Set l1} {B : Set l2} (f1 : A -> Maybe B) : (f2 : A -> Maybe B) -> Set (l1 ~U~ l2) where
+  assigns-id : f1 assigns-to f1
+  assigns-trans : {{_ : DecEq A}} {{_ : DecEq B}} ->
+                  (fi : A -> Maybe B) ->
+                  f1 assigns-to fi ->
+                  (a : A) -> (b : B) -> (safe : True $ fi a == just b) ->
+                  f1 assigns-to (assign a b fi safe)
 
 instance
   _ = Maybe.functor
