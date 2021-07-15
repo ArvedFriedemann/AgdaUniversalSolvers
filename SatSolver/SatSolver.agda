@@ -34,7 +34,35 @@ eval m (a :v: b) = (eval m a) || (eval m b)
 solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
 solver = {!!}
 
+solver' : forall {f target m} -> (exists m st (eval m f === target)) or (forall m -> ¬ (eval m f === target))
+solver' = {!!}
 
+data _=<mab_ {l} {A : Set l} {B : Set l}: (f1 : A -> Maybe B) -> (f2 : A -> Maybe B) -> Set l where
+  leqmab : (f1 : A -> Maybe B) -> (f2 : A -> Maybe B) -> ((a : A) -> (f1 a === f2 a) or (f1 a === nothing)) -> f1 =<mab f2
+
+assign :
+  (_==_ : DecEq A) ->
+  (f : A -> Maybe B) -> (a : A) -> (b : B) -> (x : A) -> Maybe B
+assign _==_ f a b x = ifDec x == a then just b else f x
+
+semi-subst : forall {f a b c} -> a === b -> f a === c -> f b === c
+semi-subst refl refl = refl
+
+assign-prop :
+  (_==_ : DecEq A) ->
+  (f : A -> Maybe B) -> (a : A) -> (b : B) -> Dec (f =<mab (assign _==_ f a b))
+assign-prop {A = A} {B = B} _==_ f a b with f a
+...                  | nothing = yes $ leqmab f f' (help refl)
+  where
+        f' : A -> Maybe B
+        f' = assign _==_ f a b
+        help : (f a === nothing) -> (k : A) -> (f k === f' k) or (f k === nothing)
+        help fa=n k with f k
+        ...| nothing = right refl
+        ...| just _ with k == a
+        ...             | yes k=a = semi-subst k=a fa=n
+        ...             | no ¬k=a = left refl
+...                  | just x = {!!}
 
 
 instance
