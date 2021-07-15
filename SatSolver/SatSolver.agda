@@ -31,17 +31,20 @@ eval m (a :^: b) = (eval m a) && (eval m b)
 eval m (a :v: b) = (eval m a) || (eval m b)
 
 
---solver proof
--- solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
--- solver = {!!}
-
-solver' : forall {f target m} -> (exists m st (eval m f === target)) or (forall m -> ¬ (eval m f === target))
-solver' = {!!}
+------------------------------------------------
+--assigns-to
+------------------------------------------------
 
 just-id : {x y : A} -> just x === just y -> x === y
 just-id refl = refl
 
 instance
+  bool-dec-eq : DecEq Bool
+  DecEq._==_ bool-dec-eq true true = yes refl
+  DecEq._==_ bool-dec-eq false false = yes refl
+  DecEq._==_ bool-dec-eq false true = no (\ ())
+  DecEq._==_ bool-dec-eq true false = no (\ ())
+
   mab-dec-eq : {{DecEq A}} -> DecEq (Maybe A)
   DecEq._==_ mab-dec-eq nothing nothing = yes refl
   DecEq._==_ mab-dec-eq (just _) nothing = no (\ ())
@@ -62,6 +65,11 @@ data _assigns-to_ {A : Set l1} {B : Set l2} (f1 : A -> Maybe B) : (f2 : A -> May
                   f1 assigns-to fi ->
                   (a : A) -> (b : B) -> (safe : True $ fi a == just b) ->
                   f1 assigns-to (assign a b fi safe)
+
+------------------------------------------
+--partial evaluation
+------------------------------------------
+
 
 instance
   _ = Maybe.functor
@@ -85,3 +93,19 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 ...                         | just true         | x           = just true
 ...                         | x                 | just true   = just true
 ...                         | x                 | y           = (| x || y |)
+
+
+------------------------------------------
+--solver
+------------------------------------------
+
+
+--solver proof
+-- solver : forall {f} -> (exists m st (Tt $ eval m f)) or (forall m -> ¬ (Tt $ eval m f))
+-- solver = {!!}
+
+solver' : {{DecEq A}} ->
+  (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
+  (exists m' st ((m assigns-to m') and (evalPartial m' f === just target))) or
+  (forall m' -> m assigns-to m' -> ¬ (evalPartial m' f === just target))
+solver' f m target = {!!}
