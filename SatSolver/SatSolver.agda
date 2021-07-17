@@ -119,6 +119,12 @@ ifDec-refl {x = x} with x == x
 ...| yes x=x = refl
 ...| no ¬x=x = absurd $ ¬x=x refl
 
+-- note: return list of assignment that suffices to deduce that there is no assignment, so
+-- exists (sol : List (A -> Maybe B)) st ((asm : var-in f -> B) -> (eval (gen-asm asm) === target) -> exists (s in sol) st (s contained in asm) )
+-- (asm : var-in f -> B) -> (asm' : A -> B)-> (gen-asm asm) subseteq asm' -> eval asm' f === target
+--important statement:
+-- ¬(exists (asm : var-in f -> B) st (eval (gen-asm asm) f === target)) -> ¬(exists (asm : A -> B) st (eval asm f === target)) 
+-- proof via induction over variables in formula
 
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
@@ -140,3 +146,9 @@ solver' (:¬: f) m target (right y) = {!   !} -- solver' f m (not target) {!!}
 -- in solver' f1 m' target ... --TODO: get set of all assignments for backtracking!
 solver' (f1 :^: f2) m target (right y) = {!   !}
 solver' (f1 :v: f2) m target (right y) = {!   !}
+
+
+
+
+
+--
