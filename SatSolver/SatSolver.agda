@@ -123,8 +123,10 @@ ifDec-refl {x = x} with x == x
 -- exists (sol : List (A -> Maybe B)) st ((asm : var-in f -> B) -> (eval (gen-asm asm) === target) -> exists (s in sol) st (s contained in asm) )
 -- (asm : var-in f -> B) -> (asm' : A -> B)-> (gen-asm asm) subseteq asm' -> eval asm' f === target
 --important statement:
--- ¬(exists (asm : var-in f -> B) st (eval (gen-asm asm) f === target)) -> ¬(exists (asm : A -> B) st (eval asm f === target)) 
+-- ¬(exists (asm : var-in f -> B) st (eval (gen-asm asm) f === target)) -> ¬(exists (asm : A -> B) st (eval asm f === target))
 -- proof via induction over variables in formula
+-- better:
+-- use vars-assigned statement. 
 
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
