@@ -1,4 +1,4 @@
-{-# OPTIONS --rewriting #-}
+-- {-# OPTIONS --rewriting #-}
 
 module SatSolver.SatSolver where
 
@@ -9,6 +9,7 @@ open import Category.Applicative
 open import Category.Functor
 open import Category.Monad
 open import Relation.Nullary.Decidable.Core using (True; False)
+open import Data.Bool.Properties using (not-injective)
 
 private
   variable
@@ -104,6 +105,47 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 ...                         | x                 | just true   = just true
 ...                         | x                 | y           = (| x || y |)
 
+------------------------------------------
+--assignments
+------------------------------------------
+
+data ProofPath {A : Set l} (f : Formula A) (m : A -> Bool) (target : Bool) : Set l where
+  ptrue :  (s : eval m f === target) -> f === ftrue -> ProofPath f m target
+  pfalse :  (s : eval m f === target) -> f === ffalse -> ProofPath f m target
+  pvar : {x : A} -> (s : eval m f === target) ->  f === var x ->  ProofPath f m target
+  p:¬: : {f' : Formula A} -> (s : eval m f === target) ->  f === :¬: f' ->
+          ProofPath f' m (not target) -> ProofPath f m target
+  p:^: : {x y : Formula A} -> (s : eval m f === target) ->  f === x :^: y ->
+          ((target === true) and (ProofPath x m true) and (ProofPath y m true)) or
+          ((target === false) and ((ProofPath x m false) or (ProofPath y m false))) ->
+          ProofPath f m target
+  p:v: : {x y : Formula A} -> (s : eval m f === target) ->  f === x :v: y ->
+          ((target === false) and (ProofPath x m false) and (ProofPath y m false)) or
+          ((target === true) and ((ProofPath x m true) or (ProofPath y m true))) ->
+          ProofPath f m target
+
+norm-proof-path : (f : Formula A) -> (m : A -> Bool) ->
+                  (target : Bool) -> (s : eval m f === target) ->
+                  ProofPath f m target
+norm-proof-path ftrue m target s = ptrue s refl
+norm-proof-path ffalse m target s = pfalse s refl
+norm-proof-path (var x) m target s = pvar s refl
+norm-proof-path (:¬: f) m target s = p:¬: s refl (norm-proof-path f m (not target) (not-injective $ double-not' s))
+-- ...
+norm-proof-path (fa :^: fb) m false s with (eval m fa) == false | (eval m fb) == false
+...| yes fa=f | _           = p:^: s refl (right ( refl , left (norm-proof-path fa m false fa=f)))
+...| no _     | yes fb=f    = p:^: s refl (right ( refl , right (norm-proof-path fb m false fb=f)))
+...| no fa=t  | no  fb=t    = absurd $ case-or fa=t fb=t (and-false s)
+norm-proof-path (fa :^: fb) m true s with and-true {eval m fa} {eval m fb} s
+...| (fa=t , fb=t) = p:^: s refl (left (refl , norm-proof-path fa m true fa=t , norm-proof-path fb m true fb=t))
+-- ...
+norm-proof-path (fa :v: fb) m true s with (eval m fa) == true | (eval m fb) == true
+...| yes fa=t | _           = p:v: s refl (right ( refl , left (norm-proof-path fa m true fa=t)))
+...| no _     | yes fb=t    = p:v: s refl (right ( refl , right (norm-proof-path fb m true fb=t)))
+...| no fa=f  | no  fb=f    = absurd $ case-or fa=f fb=f (or-true s)
+norm-proof-path (fa :v: fb) m false s with or-false {eval m fa} {eval m fb} s
+...| (fa=f , fb=f) = p:v: s refl (left (refl , norm-proof-path fa m false fa=f , norm-proof-path fb m false fb=f))
+
 
 ------------------------------------------
 --solver
@@ -126,7 +168,7 @@ ifDec-refl {x = x} with x == x
 -- ¬(exists (asm : var-in f -> B) st (eval (gen-asm asm) f === target)) -> ¬(exists (asm : A -> B) st (eval asm f === target))
 -- proof via induction over variables in formula
 -- better:
--- use vars-assigned statement. 
+-- use vars-assigned statement.
 
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
