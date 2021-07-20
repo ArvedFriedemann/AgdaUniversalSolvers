@@ -205,7 +205,9 @@ SolutionListRaw  {l = l} {A = A} f m target = List (exists m' of (A -> Maybe Boo
 solution-list : {A : Set l} -> {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (lst : SolutionListRaw f m target) -> Set l
-  --TODO: This considers all assignments, not just the ones one can assign to. Might be hard to prove later...
+  --This needs to consider all assignments m'', not just those one can assign towards.
+  --The idea is that all assignments can be reduced to their proof for a specific formula.
+  --Therefore, infinite and finite assignments should be comparable via their proofs over a concrete formula.
 solution-list {A = A} f m target lst = (forall (m'' : A -> Maybe Bool) -> (safe'' : eval (gen-asm m'') f === target) ->
             (exists m' st exists assigns st (exists safe' st (((m' , assigns , safe') in-list lst) and (Tt $
                 (norm-proof-path f (gen-asm m') target safe') =PrP=
