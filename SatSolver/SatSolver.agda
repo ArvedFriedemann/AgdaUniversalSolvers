@@ -205,6 +205,7 @@ SolutionListRaw  {l = l} {A = A} f m target = List (exists m' of (A -> Maybe Boo
 solution-list : {A : Set l} -> {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (lst : SolutionListRaw f m target) -> Set l
+  --TODO: This considers all assignments, not just the ones one can assign to. Might be hard to prove later...
 solution-list {A = A} f m target lst = (forall (m'' : A -> Maybe Bool) -> (safe'' : eval (gen-asm m'') f === target) ->
             (exists m' st exists assigns st (exists safe' st (((m' , assigns , safe') in-list lst) and (Tt $
                 (norm-proof-path f (gen-asm m') target safe') =PrP=
