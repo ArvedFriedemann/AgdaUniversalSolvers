@@ -211,8 +211,9 @@ solution-list {A = A} f m target lst = (forall (m'' : A -> Maybe Bool) -> (safe'
                 (norm-proof-path f (gen-asm m'') target safe''))) ) ))
 
 solution-list-prop : {{_ : DecEq A}} {f : Formula A} {m : A -> Maybe Bool} {target : Bool} {lst : SolutionListRaw f m target} ->
-  solution-list f m target lst -> lst === [] -> (m' : A -> Bool) -> ¬ (eval m' f === target)
-solution-list-prop solLst refl m' evmf=t = {!!}
+  solution-list f m target lst -> lst === [] -> (m' : A -> Maybe Bool) -> ¬ (eval (gen-asm m') f === target)
+solution-list-prop solLst refl m' evmf=t with solLst m' evmf=t
+... | m'' , assigns , safe' , () , rest
 
 
 solver' : {{decEq : DecEq A}} ->
