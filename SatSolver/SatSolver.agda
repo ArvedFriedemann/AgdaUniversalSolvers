@@ -10,6 +10,7 @@ open import Category.Functor
 open import Category.Monad
 open import Relation.Nullary.Decidable.Core using (True; False)
 open import Data.Bool.Properties using (not-injective)
+--open import Data.List.Membership.Propositional using () renaming (_∈_ to _in-list_; _∉_ to _not-in-list)
 
 private
   variable
@@ -112,7 +113,7 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 data ProofPath {A : Set l} (f : Formula A) (m : A -> Bool) (target : Bool) : Set l where
   ptrue :  (s : eval m f === target) -> f === ftrue -> ProofPath f m target
   pfalse :  (s : eval m f === target) -> f === ffalse -> ProofPath f m target
-  pvar : {x : A} -> (s : eval m f === target) ->  f === var x ->  ProofPath f m target
+  pvar : (x : A) -> (s : eval m f === target) ->  f === var x ->  ProofPath f m target
   p:¬: : {f' : Formula A} -> (s : eval m f === target) ->  f === :¬: f' ->
           ProofPath f' m (not target) -> ProofPath f m target
   p:^: : {x y : Formula A} -> (s : eval m f === target) ->  f === x :^: y ->
@@ -124,12 +125,35 @@ data ProofPath {A : Set l} (f : Formula A) (m : A -> Bool) (target : Bool) : Set
           ((target === true) and ((ProofPath x m true) or (ProofPath y m true))) ->
           ProofPath f m target
 
+_=PrP=_ : forall {m m' target} {f : Formula A} -> {{_ : DecEq A}} ->
+  ProofPath f m target -> ProofPath f m' target -> Bool
+(ptrue _ _) =PrP= (ptrue _ _) = true
+(pfalse _ _) =PrP= (pfalse _ _) = true
+(pvar x _ _) =PrP= (pvar x' _ _) = isYes (x == x')
+(p:¬: _ refl p) =PrP= (p:¬: _ refl p') = p =PrP= p'
+
+(p:^: _ refl (left (_ , p1 , p2) )) =PrP= (p:^: _ refl (left (_ , p1' , p2') )) =
+  (p1 =PrP= p1') && (p2 =PrP= p2')
+(p:^: _ refl (right (_ , left p) )) =PrP= (p:^: _ refl (right (_ , left p') )) =
+  (p =PrP= p')
+(p:^: _ refl (right (_ , right p) )) =PrP= (p:^: _ refl (right (_ , right p') )) =
+  (p =PrP= p')
+
+(p:v: _ refl (left (_ , p1 , p2) )) =PrP= (p:v: _ refl (left (_ , p1' , p2') )) =
+  (p1 =PrP= p1') && (p2 =PrP= p2')
+(p:v: _ refl (right (_ , left p) )) =PrP= (p:v: _ refl (right (_ , left p') )) =
+  (p =PrP= p')
+(p:v: _ refl (right (_ , right p) )) =PrP= (p:v: _ refl (right (_ , right p') )) =
+  (p =PrP= p')
+
+p1 =PrP= p2 = false
+
 norm-proof-path : (f : Formula A) -> (m : A -> Bool) ->
                   (target : Bool) -> (s : eval m f === target) ->
                   ProofPath f m target
 norm-proof-path ftrue m target s = ptrue s refl
 norm-proof-path ffalse m target s = pfalse s refl
-norm-proof-path (var x) m target s = pvar s refl
+norm-proof-path (var x) m target s = pvar x s refl
 norm-proof-path (:¬: f) m target s = p:¬: s refl (norm-proof-path f m (not target) (not-injective $ double-not' s))
 -- ...
 norm-proof-path (fa :^: fb) m false s with (eval m fa) == false | (eval m fb) == false
@@ -170,20 +194,20 @@ ifDec-refl {x = x} with x == x
 ...| yes x=x = refl
 ...| no ¬x=x = absurd $ ¬x=x refl
 
--- note: return list of assignment that suffices to deduce that there is no assignment, so
--- exists (sol : List (A -> Maybe B)) st ((asm : var-in f -> B) -> (eval (gen-asm asm) === target) -> exists (s in sol) st (s contained in asm) )
--- (asm : var-in f -> B) -> (asm' : A -> B)-> (gen-asm asm) subseteq asm' -> eval asm' f === target
---important statement:
--- ¬(exists (asm : var-in f -> B) st (eval (gen-asm asm) f === target)) -> ¬(exists (asm : A -> B) st (eval asm f === target))
--- proof via induction over variables in formula
--- better:
--- use vars-assigned statement.
 
+_in-list_ : {A : Set l} (a : A) -> (lst : List A) -> Set l
+_in-list_ a lst = exists n st (lookup lst n === a)
+
+{-
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (evalPartial m f === just target) or (evalPartial m f === nothing) ->
-  (exists m' st ((m assigns-to m') and (evalPartial m' f === just target))) or
-  (forall m' -> m assigns-to m' -> ¬ (evalPartial m' f === just target))
+  exists l of List (exists m' of (A -> Maybe Bool) st (ProofPath f (gen-asm m') target) ) st
+    (forall (m'' : A -> Maybe Bool) -> (p : ProofPath f (gen-asm m'') target) ->
+            (exists m' of (A -> Maybe Bool) st ((m' , p) in-list l)) )
+solver' = {!!}
+-}
+{-
 solver' f m target (left x) = left (m , assigns-id , x)
 solver' {{decEq = decEq}} (var x) m target (right y) = left (assign x target m (right y) ,
   assigns-trans m assigns-id x target (right y) ,
@@ -199,7 +223,7 @@ solver' (:¬: f) m target (right y) = {!   !} -- solver' f m (not target) {!!}
 -- in solver' f1 m' target ... --TODO: get set of all assignments for backtracking!
 solver' (f1 :^: f2) m target (right y) = {!   !}
 solver' (f1 :v: f2) m target (right y) = {!   !}
-
+-}
 
 
 
