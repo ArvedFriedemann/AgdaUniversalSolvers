@@ -151,6 +151,10 @@ no-proof-no-assignment : (f : Formula A) -> (m : A -> Bool) -> (target : Bool) -
   (ProofPath f m target -> BOT) -> eval m f === target -> BOT
 no-proof-no-assignment f m target ¬p f=target = absurd $ ¬p $ norm-proof-path f m target f=target
 
+gen-asm : (A -> Maybe Bool) -> A -> Bool
+gen-asm f a with f a
+...            | just x = x
+...            | nothing = false
 
 ------------------------------------------
 --solver
