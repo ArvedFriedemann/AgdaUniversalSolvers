@@ -147,6 +147,11 @@ norm-proof-path (fa :v: fb) m false s with or-false {eval m fa} {eval m fb} s
 ...| (fa=f , fb=f) = p:v: s refl (left (refl , norm-proof-path fa m false fa=f , norm-proof-path fb m false fb=f))
 
 
+no-proof-no-assignment : (f : Formula A) -> (m : A -> Bool) -> (target : Bool) ->
+  (ProofPath f m target -> BOT) -> eval m f === target -> BOT
+no-proof-no-assignment f m target ¬p f=target = absurd $ ¬p $ norm-proof-path f m target f=target
+
+
 ------------------------------------------
 --solver
 ------------------------------------------
