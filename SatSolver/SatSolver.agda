@@ -202,9 +202,9 @@ _in-list_ a lst = exists n st (lookup lst n === a)
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (evalPartial m f === just target) or (evalPartial m f === nothing) ->
-  exists l of List (exists m' of (A -> Maybe Bool) st (eval (gen-asm m') f === target) ) st
+  exists l of List (exists m' of (A -> Maybe Bool) st (m assigns-to m') and (eval (gen-asm m') f === target) ) st
     (forall (m'' : A -> Maybe Bool) -> (safe'' : eval (gen-asm m'') f === target) ->
-            (exists m' st (exists safe' st (((m' , safe') in-list l) and (Tt $
+            (exists m' st exists assigns st (exists safe' st (((m' , assigns , safe') in-list l) and (Tt $
                 (norm-proof-path f (gen-asm m') target safe') =PrP=
                 (norm-proof-path f (gen-asm m'') target safe''))) ) ))
 solver' = {!!}
