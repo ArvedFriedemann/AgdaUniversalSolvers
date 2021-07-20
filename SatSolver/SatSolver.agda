@@ -198,20 +198,22 @@ ifDec-refl {x = x} with x == x
 _in-list_ : {A : Set l} (a : A) -> (lst : List A) -> Set l
 _in-list_ a lst = exists n st (lookup lst n === a)
 
+SolutionListRaw : forall {l} -> {A : Set l} -> (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) -> Set l
+SolutionListRaw  {l = l} {A = A} f m target = List (exists m' of (A -> Maybe Bool) st
+                  (m assigns-to m') and (eval (gen-asm m') f === target) )
 
 solution-list : {A : Set l} -> {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
-  (lst : List (exists m' of (A -> Maybe Bool) st
-                    (m assigns-to m') and (eval (gen-asm m') f === target) )) -> Set l
+  (lst : SolutionListRaw f m target) -> Set l
 solution-list {A = A} f m target lst = (forall (m'' : A -> Maybe Bool) -> (safe'' : eval (gen-asm m'') f === target) ->
             (exists m' st exists assigns st (exists safe' st (((m' , assigns , safe') in-list lst) and (Tt $
                 (norm-proof-path f (gen-asm m') target safe') =PrP=
                 (norm-proof-path f (gen-asm m'') target safe''))) ) ))
-{-}
-solution-list-prop : forall {lst} {f : Formula A} {m : A -> Maybe Bool} {target : Bool} ->
+
+solution-list-prop : {{_ : DecEq A}} {f : Formula A} {m : A -> Maybe Bool} {target : Bool} {lst : SolutionListRaw f m target} ->
   solution-list f m target lst -> lst === [] -> (m' : A -> Bool) -> ¬ (eval m' f === target)
 solution-list-prop solLst refl m' evmf=t = {!!}
--}
+
 
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
