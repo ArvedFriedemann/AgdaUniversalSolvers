@@ -180,6 +180,11 @@ gen-asm f a with f a
 ...            | just x = x
 ...            | nothing = false
 
+gen-asm-prop : {m : A -> Maybe Bool} {x : A} {t : Bool} -> m x === just t -> gen-asm m x === t
+gen-asm-prop {m = m} {x = x} {t = t} mx=jt with m x
+...| just t' = just-id mx=jt
+gen-asm-prop {m = m} {x = x} {t = t} () | nothing
+
 ------------------------------------------
 --solver
 ------------------------------------------
@@ -218,12 +223,24 @@ solution-list-prop : {{_ : DecEq A}} {f : Formula A} {m : A -> Maybe Bool} {targ
 solution-list-prop solLst refl m' evmf=t with solLst m' evmf=t
 ... | m'' , assigns , safe' , () , rest
 
+evalPartial-as-eval : {f : Formula A} {m : A -> Maybe Bool} {target : Bool} -> evalPartial m f === just target -> eval (gen-asm m) f === target
+evalPartial-as-eval {f = ftrue} {m = m} {target = true} emf=jt = refl
+evalPartial-as-eval {f = ffalse} {m = m} {target = false} emf=jt = refl
+evalPartial-as-eval {f = var x} {m = m} {target = target} emf=jt = gen-asm-prop {m = m} {x = x} {t = target} emf=jt
+evalPartial-as-eval {f = :¬: f} {m = m} {target = target} emf=jt
+  with evalPartial m f in eqp | eval (gen-asm m) f in eqg
+...| just target' | target'' with just-id emf=jt | evalPartial-as-eval {f = f} {m = m} {target = target'} eqp
+...                             | ntp=t | eqrec with refl <- trans (sym eqg) eqrec = ntp=t
+evalPartial-as-eval {f = f :^: f₁} {m = m} {target = target} emf=jt = {!   !}
+evalPartial-as-eval {f = f :v: f₁} {m = m} {target = target} emf=jt = {!   !}
+
 
 solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (evalPartial m f === just target) or (evalPartial m f === nothing) ->
   exists lst st solution-list f m target lst
-solver' = {!!}
+solver' f m target (left x) = [ m , (assigns-id , {!!} ) ] , {!   !}
+solver' f m target (right y) = {!   !}
 
 {-
 solver' f m target (left x) = left (m , assigns-id , x)
