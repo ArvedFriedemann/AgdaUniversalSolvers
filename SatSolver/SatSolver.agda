@@ -81,8 +81,7 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 ------------------------------------------
 
 assign :
-  {_~_ : Rel A l}
-  {{_ : IsDecEquivalence _~_}}
+  {{_ : DecEq A}}
   (a : A) -> (b : B) -> (f : A -> Maybe B) ->
   (f a === just b) or (f a === nothing) ->
   ((x : A) -> Maybe B)
