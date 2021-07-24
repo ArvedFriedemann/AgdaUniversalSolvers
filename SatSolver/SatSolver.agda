@@ -47,20 +47,6 @@ eval m (a :v: b) = (eval m a) || (eval m b)
 just-id : {x y : A} -> just x === just y -> x === y
 just-id refl = refl
 
-instance
-  bool-dec-eq : DecEq Bool
-  DecEq._==_ bool-dec-eq true true = yes refl
-  DecEq._==_ bool-dec-eq false false = yes refl
-  DecEq._==_ bool-dec-eq false true = no (\ ())
-  DecEq._==_ bool-dec-eq true false = no (\ ())
-
-  mab-dec-eq : {{DecEq A}} -> DecEq (Maybe A)
-  DecEq._==_ mab-dec-eq nothing nothing = yes refl
-  DecEq._==_ mab-dec-eq (just _) nothing = no (\ ())
-  DecEq._==_ mab-dec-eq nothing (just _) = no (\ ())
-  DecEq._==_ mab-dec-eq (just x) (just y) with (x == y)
-  ...| yes x=y = yes (cong just x=y)
-  ...| no ¬x=y = no $ \ jx=jy -> ¬x=y $ just-id jx=jy
 
 ------------------------------------------
 --partial evaluation
@@ -95,7 +81,8 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 ------------------------------------------
 
 assign :
-  {{_ : DecEq A}} ->
+  {_~_ : Rel A l}
+  {{_ : IsDecEquivalence _~_}}
   (a : A) -> (b : B) -> (f : A -> Maybe B) ->
   (f a === just b) or (f a === nothing) ->
   ((x : A) -> Maybe B)
@@ -115,7 +102,10 @@ gen-asm-prop {m = m} {x = x} {t = t} () | nothing
 --solver
 ------------------------------------------
 
-solver : {{_ : DecEq A}} (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) -> List (A -> Maybe Bool)
+--TODO: safety condition for preassignment
+solver :
+  {{_ : DecEq A}}
+  (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) -> List (A -> Maybe Bool)
 solver ftrue m false = []
 solver ftrue m true = [ m ]
 solver ffalse m false = [ m ]
@@ -136,6 +126,9 @@ solver (fa :v: fb) m false with fa-lst <- solver fa m false =
   concatMap (\ m' -> solver fb m' false) fa-lst
 solver (fa :v: fb) m true = solver fa m true ++ solver fb m true
 
+
+solver-test : Maybe $ List (Nat and Bool)
+solver-test with solution <- head $ solver ((var 1) :^: (:¬: (var 2))) (const nothing) true = {!!}
 
 
 
