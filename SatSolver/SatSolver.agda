@@ -175,6 +175,9 @@ no-proof-no-assignment : (f : Formula A) -> (m : A -> Bool) -> (target : Bool) -
   (ProofPath f m target -> BOT) -> eval m f === target -> BOT
 no-proof-no-assignment f m target ¬p f=target = absurd $ ¬p $ norm-proof-path f m target f=target
 
+--no-proof-no-assignment : (f : Formula A) -> (target : Bool) ->
+--  ((m : A -> Bool) -> ProofPath f m target -> BOT) -> (m : A -> Bool) -> eval m f === target -> BOT
+
 gen-asm : (A -> Maybe Bool) -> A -> Bool
 gen-asm f a with f a
 ...            | just x = x
@@ -239,7 +242,7 @@ solver' : {{decEq : DecEq A}} ->
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (evalPartial m f === just target) or (evalPartial m f === nothing) ->
   exists lst st solution-list f m target lst
-solver' f m target (left x) = [ m , (assigns-id , {!!} ) ] , {!   !}
+solver' f m target (left x) = [ m , (assigns-id , evalPartial-as-eval {f = f} {m = m} {target = target} x ) ] , {!   !}
 solver' f m target (right y) = {!   !}
 
 {-
