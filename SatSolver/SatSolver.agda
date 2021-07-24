@@ -126,8 +126,10 @@ solver (fa :v: fb) m false with fa-lst <- solver fa m false =
 solver (fa :v: fb) m true = solver fa m true ++ solver fb m true
 
 
-solver-test : Maybe $ List (Nat and Bool)
-solver-test with solution <- head $ solver ((var 1) :^: (:¬: (var 2))) (const nothing) true = {!!}
+solver-test : Maybe $ List (Nat and (Maybe Bool))
+solver-test with head $ solver ((var 1) :^: (:¬: (var 2))) (const nothing) true
+...| just m = just ( (1 , m 1) :: (2 , m 2) :: [])
+...| nothing = nothing
 
 
 
