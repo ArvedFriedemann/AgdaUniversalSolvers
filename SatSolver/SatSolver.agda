@@ -10,7 +10,12 @@ open import Category.Functor
 open import Category.Monad
 open import Relation.Nullary.Decidable.Core using (True; False)
 open import Data.Bool.Properties using (not-injective)
-open import Data.List.Relation.Unary.All using (All) renaming ([] to []-all; _∷_ to _::-all_; map to map-all)
+open import Data.List.Relation.Unary.All using (All) renaming
+  ( [] to []-all;
+    _∷_ to _::-all_;
+    map to map-all;
+    fromList to fromList-all;
+    toList to toList-all)
 open import Data.List.Instances
 open import Data.Maybe.Instances
 
@@ -143,7 +148,6 @@ nothing-congruence {f = f} {k = nothing} eq = refl
 just-congruence : forall {p} -> {f : A -> A} {k : Maybe A} -> ({x : A} -> x === f (f x)) -> Data.Maybe.map f k === just p -> k === just (f p)
 just-congruence {f = f} {k = just x} dual-prop refl = cong just dual-prop
 
-
 solver-correctness : {{_ : DecEq A}}
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
   (evalPartial m f === nothing or evalPartial m f === just target) ->
@@ -168,10 +172,11 @@ solver-correctness (var x) m true safety with m x in mxeq
 
 solver-correctness (:¬: f) m target safety with
   solver-correctness f m (not target) (map-or (nothing-congruence {f = not}) (just-congruence not-involutive) safety)
-... | IH = {! !}
+... | IH = {!fromList-all $ map (\ (_ , eq) -> (_ , neg-target eq) ) $ toList-all IH !} --TODO: map-all only works iff the carrier-list is the same, which it is not in this case. We need stronger map-all
   where
-    neg-target : evalPartial m f === just (not target) -> evalPartial m (:¬: f) === just target
-    neg-target eq with evalPartial m f
+    neg-target : {m' : A -> Maybe Bool} {f' : Formula A} ->
+      evalPartial m' f' === just (not target) -> evalPartial m' (:¬: f') === just target
+    neg-target {m' = m'} {f' = f'} eq with evalPartial m' f'
     neg-target refl | just .(not target) = cong just (sym $ double-not' refl)
     neg-target ()   | nothing
 
