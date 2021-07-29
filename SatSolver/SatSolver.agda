@@ -1,16 +1,20 @@
--- {-# OPTIONS --rewriting #-}
+{-# OPTIONS --rewriting #-}
 
 module SatSolver.SatSolver where
 
 open import AgdaAsciiPrelude.AsciiPrelude
-open import Data.Maybe
+open import Data.Maybe hiding (map)
 open import Data.Maybe.Categorical as Maybe
 open import Category.Applicative
 open import Category.Functor
 open import Category.Monad
 open import Relation.Nullary.Decidable.Core using (True; False)
 open import Data.Bool.Properties using (not-injective)
---open import Data.List.Membership.Propositional using () renaming (_∈_ to _in-list_; _∉_ to _not-in-list)
+open import Data.List.Relation.Unary.All using (All) renaming ([] to []-all; _∷_ to _::-all_; map to map-all)
+open import Data.List.Instances
+open import Data.Maybe.Instances
+
+open import Agda.Builtin.Equality.Rewrite
 
 private
   variable
@@ -83,9 +87,9 @@ evalPartial m (a :v: b) with (evalPartial m a)  | (evalPartial m b)
 assign :
   {{_ : DecEq A}}
   (a : A) -> (b : B) -> (f : A -> Maybe B) ->
-  (f a === just b) or (f a === nothing) ->
+  --(f a === just b) or (f a === nothing) ->
   ((x : A) -> Maybe B)
-assign a b f _ x = ifDec x == a then just b else f x
+assign a b f {-_-} x = ifDec x == a then just b else f x
 
 gen-asm : (A -> Maybe Bool) -> A -> Bool
 gen-asm f a with f a
@@ -109,14 +113,14 @@ solver ftrue m false = []
 solver ftrue m true = [ m ]
 solver ffalse m false = [ m ]
 solver ffalse m true = []
-solver (var x) m false with m x in mxeq
+solver (var x) m false with m x --in mxeq
 ...                     | just false = [ m ]
 ...                     | just true = []
-...                     | nothing = [ assign x false m (right mxeq) ]
-solver (var x) m true with m x in mxeq
+...                     | nothing = [ assign x false m {-(right mxeq)-} ]
+solver (var x) m true with m x --in mxeq
 ...                     | just false = []
 ...                     | just true = [ m ]
-...                     | nothing = [ assign x true m (right mxeq) ]
+...                     | nothing = [ assign x true m {-(right mxeq)-} ]
 solver (:¬: f) m target = solver f m (not target)
 solver (fa :^: fb) m false = solver fa m false ++ solver fb m false
 solver (fa :^: fb) m true with fa-lst <- solver fa m true =
@@ -133,7 +137,46 @@ solver-test with head $ solver ((var 1) :^: (:¬: (var 2))) (const nothing) true
 
 
 
+nothing-congruence : {f : A -> B} {k : Maybe A} -> Data.Maybe.map f k === nothing -> k === nothing
+nothing-congruence {f = f} {k = nothing} eq = refl
 
+just-congruence : forall {p} -> {f : A -> A} {k : Maybe A} -> ({x : A} -> x === f (f x)) -> Data.Maybe.map f k === just p -> k === just (f p)
+just-congruence {f = f} {k = just x} dual-prop refl = cong just dual-prop
+
+
+solver-correctness : {{_ : DecEq A}}
+  (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
+  (evalPartial m f === nothing or evalPartial m f === just target) ->
+  All (_=== just target) $ evalPartial <$> (solver f m target) <*> [ f ]
+solver-correctness ftrue m false safety = []-all
+solver-correctness ftrue m true safety = refl ::-all []-all
+solver-correctness ffalse m false safety = refl ::-all []-all
+solver-correctness ffalse m true safety = []-all
+
+solver-correctness (var x) m false safety with m x in mxeq
+... | just false = mxeq ::-all []-all
+... | just true = []-all
+... | nothing with x == x
+... | yes p = refl ::-all []-all
+... | no ¬p = (absurd $ ¬p refl) ::-all []-all
+solver-correctness (var x) m true safety with m x in mxeq
+... | just false = []-all
+... | just true  = mxeq ::-all []-all
+... | nothing with x == x
+... | yes p = refl ::-all []-all
+... | no ¬p = (absurd $ ¬p refl) ::-all []-all
+
+solver-correctness (:¬: f) m target safety with
+  solver-correctness f m (not target) (map-or (nothing-congruence {f = not}) (just-congruence not-involutive) safety)
+... | IH = {! !}
+  where
+    neg-target : evalPartial m f === just (not target) -> evalPartial m (:¬: f) === just target
+    neg-target eq with evalPartial m f
+    neg-target refl | just .(not target) = cong just (sym $ double-not' refl)
+    neg-target ()   | nothing
+
+solver-correctness (f :^: f₁) m target safety = {!   !}
+solver-correctness (f :v: f₁) m target safety = {!   !}
 
 
 
