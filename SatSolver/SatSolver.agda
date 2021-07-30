@@ -96,6 +96,11 @@ assign :
   ((x : A) -> Maybe B)
 assign a b f {-_-} x = ifDec x == a then just b else f x
 
+assign-prop : {{_ : DecEq A}} {x : A} {m : A -> Maybe B} {target : B} -> assign x target m x === just target
+assign-prop {x = x} with x == x
+...| yes p = refl
+...| no ¬p = absurd $ ¬p refl
+
 gen-asm : (A -> Maybe Bool) -> A -> Bool
 gen-asm f a with f a
 ...            | just x = x
@@ -148,31 +153,29 @@ nothing-congruence {f = f} {k = nothing} eq = refl
 just-congruence : forall {p} -> {f : A -> A} {k : Maybe A} -> ({x : A} -> x === f (f x)) -> Data.Maybe.map f k === just p -> k === just (f p)
 just-congruence {f = f} {k = just x} dual-prop refl = cong just dual-prop
 
+
+
+
 solver-correctness : {{_ : DecEq A}}
   (f : Formula A) -> (m : A -> Maybe Bool) -> (target : Bool) ->
-  (evalPartial m f === nothing or evalPartial m f === just target) ->
-  All (_=== just target) $ evalPartial <$> (solver f m target) <*> [ f ]
-solver-correctness ftrue m false safety = []-all
-solver-correctness ftrue m true safety = refl ::-all []-all
-solver-correctness ffalse m false safety = refl ::-all []-all
-solver-correctness ffalse m true safety = []-all
+  All (\ m -> evalPartial m f === just target) (solver f m target)
+solver-correctness ftrue m false = []-all
+solver-correctness ftrue m true = refl ::-all []-all
+solver-correctness ffalse m false = refl ::-all []-all
+solver-correctness ffalse m true = []-all
 
-solver-correctness (var x) m false safety with m x in mxeq
+solver-correctness (var x) m false with m x in mxeq
 ... | just false = mxeq ::-all []-all
 ... | just true = []-all
-... | nothing with x == x
-... | yes p = refl ::-all []-all
-... | no ¬p = (absurd $ ¬p refl) ::-all []-all
-solver-correctness (var x) m true safety with m x in mxeq
+... | nothing = assign-prop {x = x} {m = m} {target = false} ::-all []-all
+solver-correctness (var x) m true with m x in mxeq
 ... | just false = []-all
 ... | just true  = mxeq ::-all []-all
-... | nothing with x == x
-... | yes p = refl ::-all []-all
-... | no ¬p = (absurd $ ¬p refl) ::-all []-all
+... | nothing = assign-prop {x = x} {m = m} {target = true} ::-all []-all
 
-solver-correctness (:¬: f) m target safety with
-  solver-correctness f m (not target) (map-or (nothing-congruence {f = not}) (just-congruence not-involutive) safety)
-... | IH = {!fromList-all $ map (\ (_ , eq) -> (_ , neg-target eq) ) $ toList-all IH !} --TODO: map-all only works iff the carrier-list is the same, which it is not in this case. We need stronger map-all
+solver-correctness (:¬: f) m target with
+  solver-correctness f m (not target)
+... | IH = map-all (neg-target {f' = f}) IH --TODO: map-all only works iff the carrier-list is the same, which it is not in this case. We need stronger map-all
   where
     neg-target : {m' : A -> Maybe Bool} {f' : Formula A} ->
       evalPartial m' f' === just (not target) -> evalPartial m' (:¬: f') === just target
@@ -180,8 +183,8 @@ solver-correctness (:¬: f) m target safety with
     neg-target refl | just .(not target) = cong just (sym $ double-not' refl)
     neg-target ()   | nothing
 
-solver-correctness (f :^: f₁) m target safety = {!   !}
-solver-correctness (f :v: f₁) m target safety = {!   !}
+solver-correctness (fa :^: fb) m target = {!   !}
+solver-correctness (fa :v: fb) m target = {!   !}
 
 
 
