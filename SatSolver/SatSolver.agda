@@ -153,7 +153,26 @@ nothing-congruence {f = f} {k = nothing} eq = refl
 just-congruence : forall {p} -> {f : A -> A} {k : Maybe A} -> ({x : A} -> x === f (f x)) -> Data.Maybe.map f k === just p -> k === just (f p)
 just-congruence {f = f} {k = just x} dual-prop refl = cong just dual-prop
 
-
+target-consistency :
+  {{_ : DecEq A}}
+  (fa fb : Formula A) (m : A -> Maybe Bool) (target : Bool) ->
+  evalPartial m fa === just target ->
+  All (\ m' -> evalPartial m' fa === just target) (solver fb m target)
+target-consistency fa ftrue m false safety = []-all
+target-consistency fa ftrue m true safety = safety ::-all []-all
+target-consistency fa ffalse m false safety = safety ::-all []-all
+target-consistency fa ffalse m true safety = []-all
+target-consistency fa (var x) m false safety with m x in mxeq
+... | just false = safety ::-all []-all
+... | just true  = []-all
+... | nothing  = {!   !} ::-all []-all
+target-consistency fa (var x) m true safety with m x in mxeq
+... | just false = []-all
+... | just true  = safety ::-all []-all
+... | nothing  = {!   !} ::-all []-all
+target-consistency fa (:¬: fb) m target safety = {!   !}
+target-consistency fa (fb :^: fb₁) m target safety = {!   !}
+target-consistency fa (fb :v: fb₁) m target safety = {!   !}
 
 
 solver-correctness : {{_ : DecEq A}}
@@ -183,7 +202,11 @@ solver-correctness (:¬: f) m target with
     neg-target refl | just .(not target) = cong just (sym $ double-not' refl)
     neg-target ()   | nothing
 
-solver-correctness (fa :^: fb) m target = {!   !}
+solver-correctness (fa :^: fb) m false = {!   !}
+solver-correctness (fa :^: fb) m true with solver-correctness fa m true
+... | IHfa = {!   !}
+
+
 solver-correctness (fa :v: fb) m target = {!   !}
 
 
