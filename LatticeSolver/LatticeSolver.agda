@@ -43,3 +43,24 @@ record LatticeProp {L : Set l} {{Lat : Lattice L}} : Set l where
     semi-\/ : SemiLatticeProp _\/_
     absorb-\/-/\ : Absorption _\/_ _/\_
     absorb-/\-\/ : Absorption _/\_ _\/_
+
+
+
+propagateN : {{_ : DecEq L}} {{_ : Lattice L}} -> (extr : L -> (L -> L)) -> Nat -> L -> L or L
+propagateN extr 0 l = right l
+propagateN extr (suc n) l with r <- (extr l $ l) /\ l | r == l
+... | yes p = left l
+... | no ¬p = propagateN extr n r
+
+record Propagator (L : Set l) : Set l where
+  field
+    e-extract : L -> (L -> L)
+    e-remove : L -> (L -> L)
+    termination : {{_ : DecEq L}} {{_ : Lattice L}} ->
+      exists n st (forall (l : L) -> exists l' of L st propagateN e-extract n l === left l')
+
+  propagate : {{_ : DecEq L}} {{_ : Lattice L}} -> L -> L
+  propagate l with (n , r) <- termination | r l
+  ...| res , _ = res
+
+  
