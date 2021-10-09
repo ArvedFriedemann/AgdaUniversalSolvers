@@ -68,18 +68,25 @@ record _-LP>_ (L : Set l) (K : Set l) : Set l where
   field
     getLP : L -> K
     -- notice: the L that comes out here is the minimum l that adds the given K!
-    setLP : L -> K -> L
+    setLP : K -> L
   -- laws?
+open _-LP>_ public
 
 record GenLPLattice (L : Set l) {{_ : Lattice L}} : Set (lsuc l) where
   field
-    newLP : {{_ : Lattice K}} -> L -> (L -LP> K and L)
+    newLP : {{_ : Lattice K}} -> L -> (L and L -LP> K)
 open GenLPLattice {{...}} public
 
 record Monad (M : Set l -> Set l) : Set (lsuc l) where
   field
     return : A -> M A
     _>>=_ : M A -> (A -> M B) -> M B
+
+  _<*>_ : M (A -> B) -> M A -> M B
+  _<*>_ fm m = fm >>= \f -> m >>= \v -> return $ f v
+
+  _<$>_ : (A -> B) -> M A -> M B
+  _<$>_ f m = return f <*> m
 
   _>>_ : M A -> M B -> M B
   _>>_ m m' = m >>= const m'
@@ -93,7 +100,7 @@ record MonadVarLattice (M : Set l -> Set l) (V : Set l -> Set l) : Set (lsuc l) 
     new : {A : Set l} {{_ : Lattice A}} -> M (V A)
     get : {{_ : Lattice A}} -> V A -> M A
     modify : {A B : Set l} {{_ : Lattice A}} -> (A -> A and B) -> V A -> M B
-    instance monad-MonadVar : Monad M
+    overlap {{monad-MonadVar}} : Monad M
 
   set : {{_ : Lattice A}} -> A -> V A -> M T
   set a = modify (const (a , top))
@@ -104,7 +111,7 @@ record MonadVarLattice (M : Set l -> Set l) (V : Set l -> Set l) : Set (lsuc l) 
   new' : {{_ : Lattice A}} -> A -> M (V A)
   new' a = new >>* set a
 
-open MonadVarLattice {{...}} public
+open MonadVarLattice {{...}} public hiding (monad-MonadVar)
 
 State : (S : Set l) -> (A : Set l) -> Set l
 State S A = S -> A and S
@@ -112,6 +119,7 @@ State S A = S -> A and S
 record MonadState (S : Set l) (M : Set l -> Set l) : Set (lsuc l) where
   field
     state : (S -> S and A) -> M A
+    overlap {{monad-MonadState}} : Monad M
 
   getState : M S
   getState = state (\s -> s , s)
@@ -123,7 +131,8 @@ open MonadState {{...}} public
 
 PropMonad : {{_ : Lattice L}} {{_ : GenLPLattice L}} {{_ : MonadState L M}} ->
             MonadVarLattice M (L -LP>_)
-MonadVarLattice.new PropMonad = {!   !}
-MonadVarLattice.get PropMonad = {!   !}
-MonadVarLattice.modify PropMonad = {!   !}
-MonadVarLattice.monad-MonadVar PropMonad = {!   !}
+MonadVarLattice.new PropMonad = state newLP
+(MonadVarLattice.get PropMonad) v = getLP v <$> getState
+(MonadVarLattice.modify PropMonad) f v = state \l ->
+  let (a , b) = f $ getLP v l
+  in (l /\ setLP v a , b)
