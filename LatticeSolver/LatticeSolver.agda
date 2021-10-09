@@ -5,8 +5,8 @@ open import AgdaAsciiPrelude.AsciiPrelude
 private
   variable
     l l' l'' l1 l2 l3 : Level
-    A B C D L : Set l
-    F G H M : Set l -> Set l'
+    A B C D L K : Set l
+    F G H M V : Set l -> Set l
 
 record Lattice (L : Set l) : Set l where
   infixr 6 _/\_
@@ -63,4 +63,67 @@ record Propagator (L : Set l) : Set l where
   propagate l with (n , r) <- termination | r l
   ...| res , _ = res
 
-  
+
+record _-LP>_ (L : Set l) (K : Set l) : Set l where
+  field
+    getLP : L -> K
+    -- notice: the L that comes out here is the minimum l that adds the given K!
+    setLP : L -> K -> L
+  -- laws?
+
+record GenLPLattice (L : Set l) {{_ : Lattice L}} : Set (lsuc l) where
+  field
+    newLP : {{_ : Lattice K}} -> L -> (L -LP> K and L)
+open GenLPLattice {{...}} public
+
+record Monad (M : Set l -> Set l) : Set (lsuc l) where
+  field
+    return : A -> M A
+    _>>=_ : M A -> (A -> M B) -> M B
+
+  _>>_ : M A -> M B -> M B
+  _>>_ m m' = m >>= const m'
+
+  _>>*_ : M A -> (A -> M B) -> M A
+  _>>*_ m m' = m >>= \a -> m' a >> return a
+open Monad {{...}} public
+
+record MonadVarLattice (M : Set l -> Set l) (V : Set l -> Set l) : Set (lsuc l) where
+  field
+    new : {A : Set l} {{_ : Lattice A}} -> M (V A)
+    get : {{_ : Lattice A}} -> V A -> M A
+    modify : {A B : Set l} {{_ : Lattice A}} -> (A -> A and B) -> V A -> M B
+    instance monad-MonadVar : Monad M
+
+  set : {{_ : Lattice A}} -> A -> V A -> M T
+  set a = modify (const (a , top))
+
+  modify' : {{_ : Lattice A}} -> (A -> A) -> V A -> M T
+  modify' f = modify (\a -> (f a , top))
+
+  new' : {{_ : Lattice A}} -> A -> M (V A)
+  new' a = new >>* set a
+
+open MonadVarLattice {{...}} public
+
+State : (S : Set l) -> (A : Set l) -> Set l
+State S A = S -> A and S
+
+record MonadState (S : Set l) (M : Set l -> Set l) : Set (lsuc l) where
+  field
+    state : (S -> S and A) -> M A
+
+  getState : M S
+  getState = state (\s -> s , s)
+
+  putState : S -> M T
+  putState t = state (\s -> t , top )
+
+open MonadState {{...}} public
+
+PropMonad : {{_ : Lattice L}} {{_ : GenLPLattice L}} {{_ : MonadState L M}} ->
+            MonadVarLattice M (L -LP>_)
+MonadVarLattice.new PropMonad = {!   !}
+MonadVarLattice.get PropMonad = {!   !}
+MonadVarLattice.modify PropMonad = {!   !}
+MonadVarLattice.monad-MonadVar PropMonad = {!   !}
