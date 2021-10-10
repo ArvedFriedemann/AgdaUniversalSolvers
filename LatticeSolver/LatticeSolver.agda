@@ -80,15 +80,20 @@ open _-LP>_ public
 record GenLPLattice (L : Set l) : Set (lsuc l) where
   field
     newLP : {{_ : Lattice K}} -> L -> (L and L -LP> K)
-    --overlap {{lattice}} : Lattice L
-open GenLPLattice {{...}} public --hiding (lattice)
+  -- overlap {{lattice}} : Lattice L
+open GenLPLattice {{...}} public -- hiding (lattice)
+
+record PropLattice (L : Set l) : Set l where
+  field
+    extractPtr : L -LP> (L -> L)
+    removePtr : L -LP> (L -> L)
+open PropLattice public
 
 GeneralPropagator :
-  (L -LP> (L -> L)) ->
-  (L -LP> (L -> L)) ->
+  PropLattice L ->
   Propagator L
-Propagator.e-extract (GeneralPropagator extp remp) = getLP extp
-Propagator.e-remove (GeneralPropagator extp remp) = getLP remp
+Propagator.e-extract (GeneralPropagator pl) = getLP $ extractPtr pl
+Propagator.e-remove (GeneralPropagator pl) = getLP $ removePtr pl
 
 
 
