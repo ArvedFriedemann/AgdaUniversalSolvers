@@ -56,8 +56,13 @@ record Propagator (L : Set l) : Set l where
   field
     e-extract : L -> (L -> L)
     e-remove : L -> (L -> L)
+open Propagator public
+
+record TerminatingPropagator (L : Set l) : Set l where
+  field
+    prop : Propagator L
     termination : {{_ : DecEq L}} {{_ : Lattice L}} ->
-      exists n st (forall (l : L) -> exists l' of L st propagateN e-extract n l === left l')
+      exists n st (forall (l : L) -> exists l' of L st propagateN (e-extract prop) n l === left l')
 
   propagate : {{_ : DecEq L}} {{_ : Lattice L}} -> L -> L
   propagate l with (n , r) <- termination | r l
@@ -72,10 +77,22 @@ record _-LP>_ (L : Set l) (K : Set l) : Set l where
   -- laws?
 open _-LP>_ public
 
-record GenLPLattice (L : Set l) {{_ : Lattice L}} : Set (lsuc l) where
+record GenLPLattice (L : Set l) : Set (lsuc l) where
   field
     newLP : {{_ : Lattice K}} -> L -> (L and L -LP> K)
-open GenLPLattice {{...}} public
+    --overlap {{lattice}} : Lattice L
+open GenLPLattice {{...}} public --hiding (lattice)
+
+GeneralPropagator : {{_ : GenLPLattice L}} ->
+  (L -LP> (L -> L)) ->
+  (L -LP> (L -> L)) ->
+  Propagator L
+Propagator.e-extract (GeneralPropagator extp remp) = getLP extp
+Propagator.e-remove (GeneralPropagator extp remp) = getLP remp
+
+
+
+
 
 record Monad (M : Set l -> Set l) : Set (lsuc l) where
   field
