@@ -83,7 +83,7 @@ record GenLPLattice (L : Set l) : Set (lsuc l) where
     --overlap {{lattice}} : Lattice L
 open GenLPLattice {{...}} public --hiding (lattice)
 
-GeneralPropagator : {{_ : GenLPLattice L}} ->
+GeneralPropagator :
   (L -LP> (L -> L)) ->
   (L -LP> (L -> L)) ->
   Propagator L
