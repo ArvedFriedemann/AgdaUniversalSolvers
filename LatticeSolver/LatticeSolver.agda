@@ -36,14 +36,18 @@ record SemiLatticeProp {L : Set l} (_op_ : L -> L -> L) : Set l where
     idem    : Idempotency _op_
     assoc   : Associativity _op_
     commut  : Commutativity _op_
+open SemiLatticeProp public renaming
+  (idem to SLP-idem; assoc to SLP-assoc; commut to SLP-commut)
 
-record LatticeProp {L : Set l} {{Lat : Lattice L}} : Set l where
+
+record LatticeProp (L : Set l) : Set l where
   field
+    overlap {{lattice-LatticeProp}} : Lattice L
     semi-/\ : SemiLatticeProp _/\_
     semi-\/ : SemiLatticeProp _\/_
     absorb-\/-/\ : Absorption _\/_ _/\_
     absorb-/\-\/ : Absorption _/\_ _\/_
-
+open LatticeProp {{...}} public
 
 
 propagateN : {{_ : DecEq L}} {{_ : Lattice L}} -> (extr : L -> (L -> L)) -> Nat -> L -> L or L
@@ -95,6 +99,38 @@ GeneralPropagator :
 Propagator.e-extract (GeneralPropagator pl) = getLP $ extractPtr pl
 Propagator.e-remove (GeneralPropagator pl) = getLP $ removePtr pl
 
+postulate
+  extensionality : {f g : A -> B}
+    -> ((x : A) -> f x === g x)
+      -----------------------
+    -> f === g
+    {-}
+  forall-extensionality : ∀ {f g : (x : A) -> B x}
+    -> ((x : A) -> f x === g x)
+      -----------------------
+    -> f === g
+    -}
+
+instance
+  funcLattice :
+    {{_ : Lattice B}} ->
+    Lattice (A -> B)
+  (Lattice._/\_ funcLattice) f1 f2 x = (f1 x) /\ (f2 x)
+  (Lattice._\/_ funcLattice) f1 f2 x = (f1 x) \/ (f2 x)
+
+  funcLatticeProps : {A : Set l} {{_ : LatticeProp B}} -> LatticeProp (A -> B)
+  SemiLatticeProp.idem (LatticeProp.semi-/\ funcLatticeProps) f = extensionality h where
+    h : forall x -> (f x) /\ (f x) === f x
+    h x with f x
+    ...| k = (SLP-idem semi-/\) k
+  SemiLatticeProp.assoc (LatticeProp.semi-/\ funcLatticeProps) = {!   !}
+  SemiLatticeProp.commut (LatticeProp.semi-/\ funcLatticeProps) = {!   !}
+  LatticeProp.semi-\/ funcLatticeProps = {!   !}
+  LatticeProp.absorb-\/-/\ funcLatticeProps = {!   !}
+  LatticeProp.absorb-/\-\/ funcLatticeProps = {!   !}
+
+
+--record ScopeProperty (scope : L -LP> L) : Set l where
 
 
 
