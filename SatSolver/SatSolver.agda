@@ -27,6 +27,9 @@ private
     A B C D : Set l
     F G H : Set l -> Set l'
 
+infixr 5 _:^:_
+infixr 4 _:v:_
+
 data Formula (A : Set l) : Set l where
   ftrue : Formula A
   ffalse : Formula A
@@ -145,6 +148,15 @@ solver-test with head $ solver ((var 1) :^: (:¬: (var 2))) (const nothing) true
 ...| just m = just ( (1 , m 1) :: (2 , m 2) :: [])
 ...| nothing = nothing
 
+solver-test' : Maybe $ List (Nat and (Maybe Bool))
+solver-test' with head $ solver ((var 1) :^: (var 2) :^: (:¬: ((var 1) :^: (var 2)) )) (const nothing) true
+...| just m = just ( (1 , m 1) :: (2 , m 2) :: [])
+...| nothing = nothing
+
+solver-test'' : Maybe $ List (Nat and (Maybe Bool))
+solver-test'' with head $ solver ((:¬: ((var 1) :^: (var 2)) ) :v: (var 1) :^: (var 2) ) (const nothing) true
+...| just m = just ( (1 , m 1) :: (2 , m 2) :: [])
+...| nothing = nothing
 
 
 nothing-congruence : {f : A -> B} {k : Maybe A} -> Data.Maybe.map f k === nothing -> k === nothing
