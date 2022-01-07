@@ -41,3 +41,17 @@ record ExtractorLattice (L : Set l) : Set l where
 propagate : {{_ : ExtractorLattice L}} -> Nat -> L -> L
 propagate 0 l = l
 propagate (suc n) l = propagate n ((extract l $ l) /\ l)
+
+record LatticePart (L : Set l) (A : Set l) : Set l where
+  field
+    get : L -> A
+    put : A -> L
+{-
+Problem: functions always need to be able to create new variables. Problem is, that the new lattice part needs to be created first, which technically requires a state. possible fix: Return as a lattice thing an operation, that creates a variable on meet.
+-}
+
+record CreatorLattice (L : Set l) : Set l where
+  field
+    c-op : (LatticePart L A -> L) -> L
+open CreatorLattice {{...}} public
+--TODO: properties
