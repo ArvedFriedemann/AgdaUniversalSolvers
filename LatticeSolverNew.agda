@@ -1,2 +1,3 @@
 module LatticeSolverNew where
 open import LatticeSolverNew.LatticeSolverNew
+open import LatticeSolverNew.LatticeSolverNewProperties
