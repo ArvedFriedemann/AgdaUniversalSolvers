@@ -1,6 +1,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 data (f :+: g) a = Inl (f a) | Inr (g a)
 
@@ -29,13 +34,13 @@ instance (Eval f a, Eval g a) => Eval (f :+: g) a where
 data ConstOp t a = ConstOp
 
 instance Functor (ConstOp t) where
-  fmap ConstOp = ConstOp
+  fmap _ ConstOp = ConstOp
 
 class ConstOpEval t a where
   constFunc :: a
 
-instance (ConstOpEval t a) => Eval (ConstOp t) a where
-  eval ConstOp = constFunc
+instance forall t a.(ConstOpEval t a) => Eval (ConstOp t) a where
+  eval ConstOp = constFunc @t
 
 ---------------------------------
 
@@ -47,8 +52,8 @@ instance Functor (MonOp a) where
 class MonOpEval t a where
   monFunc :: a -> a
 
-instance (MonOpEval t a) => Eval (MonOp t) a where
-  eval (MonOp x) = monFunc (eval x)
+instance forall t a. (MonOpEval t a) => Eval (MonOp t) a where
+  eval (MonOp x) = monFunc @t x
 
 --------------------------------
 
@@ -60,9 +65,25 @@ instance Functor (BinOp t) where
 class BinOpEval t a where
   binFunc :: a -> a -> a
 
-instance (BinOpEval t a) => Eval (BinOp t) a where
-  eval (BinOp x y) = binFunc (eval x) (eval y)
+instance forall t a. (BinOpEval t a) => Eval (BinOp t) a where
+  eval (BinOp x y) = binFunc @t x y
 
+---------------------------------
+
+class (Functor f, Functor g) => f :<: g where
+  inj :: f a -> g a
+
+instance (Functor f) => f :<: f where
+  inj = id
+
+instance (Functor f, Functor g) => f :<: (f :+: g) where
+  inj = Inl
+
+instance (Functor f, Functor g, f :<: h) => f :<: (g :+: h) where
+  inj = Inr . inj
+
+inject :: (g :<: f) => g (Fix f) -> Fix f
+inject = In . inj
 
 ---------------------------------
 
@@ -72,13 +93,30 @@ data NOT = NOT
 data ONE = ONE
 data ZERO = ZERO
 
-type Expr f =
+type Expr =
       BinOp AND
   :+: BinOp OR
   :+: MonOp NOT
   :+: ConstOp ONE
   :+: ConstOp ZERO
 
+evalExpr :: Fix Expr -> Bool
+evalExpr = foldF eval
+
+(/\) :: (BinOp AND :<: f) => (Fix f) -> (Fix f) -> (Fix f)
+a /\ b = inject (BinOp @AND a b)
+
+(\/) :: (BinOp OR :<: f) => (Fix f) -> (Fix f) -> (Fix f)
+a \/ b = inject (BinOp @OR a b)
+
+notb :: (MonOp NOT :<: f) => (Fix f) -> (Fix f)
+notb x = inject (MonOp @NOT x)
+
+one :: (ConstOp ONE :<: f) => (Fix f)
+one = inject (ConstOp @ONE)
+
+zero :: (ConstOp ZERO :<: f) => (Fix f)
+zero = inject (ConstOp @ZERO)
 
 instance BinOpEval AND Bool where
   binFunc = (&&)
