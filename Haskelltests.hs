@@ -181,6 +181,11 @@ instance forall t e g. (Eq e, Enum e, Bounded e, BinOpEval t e, ConstOp e :<: g,
   evalPart (BinOp (Left x) (Right expr)) = toUniqueValue
                                             (inject $ BinOp @t (con x) expr)
                                             [binFunc @t x y | y <- [minBound..maxBound]]
+  evalPart (BinOp (Right expr1) (Right expr2)) = toUniqueValue
+                                            (inject $ BinOp @t expr1 expr2)
+                                            [binFunc @t x y | 
+                                              x <- [minBound..maxBound],
+                                              y <- [minBound..maxBound]]
 
 toUniqueValue :: (Eq e) => b -> [e] -> Either e b
 toUniqueValue def vals
