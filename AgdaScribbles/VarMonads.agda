@@ -33,6 +33,13 @@ record BaseVarMonad M V : Set _ where
   put : V A -> A -> M ()
   put p val = modify p $ const (val, ())
 
+record LatticeVarMonad M V : Set _ where
+  field
+    new : A -> M (V A)
+    get : V A -> M A
+    put : {Lattice A} -> V A -> A -> M ()
+    put-prop : put p v >> m >> get p >>= \v' -> return (v leq v')
+
 AsmList : Set l
 AsmList = List $ exists T st (V T -x- T)
 
@@ -42,7 +49,14 @@ record CLVarMonad M V : Set _ where
     getReason : V A -> AsmList
   open BaseVarMonad bvm
 
-baseToCL : BaseVarMonad M V -> BaseVarMonad (StateT AsmList M) V
+record LatCLVarMonad M V : Set _ where
+  field
+    lvm : LatticeVarMonad M V
+    getReason : V A -> AsmList
+  open LatticeVarMonad lvm
+
+--this whole approach obviously only works if variable assignment is only growing.
+baseToCL : BaseVarMonad M V -> CLVarMonad (StateT AsmList M) V
 baseToCL bvm = record{
   bvm = record{
     new = \x -> lift $ new ([],x),
@@ -58,3 +72,24 @@ baseToCL bvm = record{
   getReason = (fst <$>) o lift o get
 }
   where open BaseVarMonad bvm
+
+--The V probably needs to be a Carr V for some Carrier Carr : Set l -> Set l -> Set l, becuase the pointers now point to something bigger, but the functor still is just to the pointer. So prolly \A -> V (AsmList -x- A)
+--TODO: check if this compiles
+lattToCl : LatticeVarMonad M V -> LatCLVarMonad (StateT AsmList M) (\A -> V (AsmList -x- A))
+lattToCl lvm = record {
+  lvm = record {
+    new = \x -> lift $ new ([[]],x), --can hold multiple reasons
+    get = \p -> do
+      v <- snd <$> (lift $ get p)
+      state ( (_ , (p , v)) ::_)
+      return v
+    put = \p v -> do
+      s <- getState
+      lift $ put p (s , v)
+  };
+  getReason = (fst <$>) o lift o get
+}
+  where open LatticeVarMonad lvm
+
+
+--TODO: Do the scopes with lattices
