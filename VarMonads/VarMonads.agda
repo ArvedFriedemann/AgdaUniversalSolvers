@@ -6,8 +6,8 @@ open import AgdaAsciiPrelude.AsciiPrelude
 
 private
   variable
-    A B C L : Set
-    M V F : Set -> Set
+    A B L : Set
+    M V F C : Set -> Set
 
 record Functor (F : Set -> Set) : Set  where
   field
@@ -89,29 +89,50 @@ VarMonad=>LatVarMonad vm = record {
   mon = mon }
   where open VarMonad vm
 
-AsmList : (V : Set -> Set) -> Set
-AsmList V = List $ Sigma Set (\A -> (A -x- V A))
+record Container (C : Set -> Set) : Set where
+  field
+    empty : C A
+    singleton : A -> C A
+{-}
+record LatCont (C : Set -> Set) : Set where
+  field
+    cont : Container C
+    lat : Lattice (C A)
+  open Container cont public
+  open Lattice lat public
+-}
+
+AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
+AsmCont C V = C $ Sigma Set (\A -> (A -x- V A))
 
 --TODO: Those need to be threshold functions
-IndrAsmList : (V : Set -> Set) -> Set
-IndrAsmList V = List $ Sigma (Set -x- Set) (\ (A , B) -> ((A -> Maybe B) -x- B -x- V A))
+IndrAsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
+IndrAsmCont C V = C $ Sigma (Set -x- Set) (\ (A , B) -> ((A -> Maybe B) -x- B -x- V A))
 
 
-record CLLatVarMonad M V : Set where
+record CLLatVarMonad M V C : Set where
   field
     lvm : LatVarMonad M V
+    cont : Container C
   open LatVarMonad lvm public
   field
-    getReasons : V A -> M (List $ AsmList V)
+    getReasons : V A -> M (C $ AsmCont C V)
 
-{-
-LatVarMonad=>CLLatVarMonad : LatVarMonad M V -> CLLatVarMonad M (\ A -> V (A -x- (List $ AsmList V) ))
-LatVarMonad=>CLLatVarMonad lvm = record {
+instance
+  lat-to-tup : {{latA : Lattice A}} -> {{latB : Lattice B}} -> Lattice (A -x- B)
+  lat-to-tup = {!!}
+
+  listLattice : {{Container C}} -> Lattice (C A)
+  listLattice = {!!}
+
+LatVarMonad=>CLLatVarMonad : Container C -> LatVarMonad M V -> CLLatVarMonad M (\ A -> V (A -x- (C $ AsmCont C V) )) C
+LatVarMonad=>CLLatVarMonad cont lvm = record {
   lvm = record {
-    new = {!   !} ;
+    new = \ x -> new (x , empty) ;
     get = {!   !} ;
     modify = {!   !} ;
     mon = {!   !} } ;
   getReasons = {!   !} }
-  where open LatVarMonad lvm
--}
+  where
+    open LatVarMonad lvm
+    open Container cont
