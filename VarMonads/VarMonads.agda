@@ -1,27 +1,27 @@
+{-# OPTIONS --type-in-type #-}
+
 module VarMonads.VarMonads where
 
 open import AgdaAsciiPrelude.AsciiPrelude
 
 private
   variable
-    l l' l'' l1 l2 l3 l4 : Level
-    A B C L : Set l
-    M : Set l' -> Set l''
-    V : Set l -> Set l'
+    A B C L : Set
+    M V F : Set -> Set
 
-record Functor (F : Set l -> Set l') : Set (lsuc l ~U~ l') where
+record Functor (F : Set -> Set) : Set  where
   field
     _<$>_ : (A -> B) -> F A -> F B
 
 
-record Applicative (F : Set l -> Set l') : Set (lsuc l ~U~ l') where
+record Applicative F : Set where
   field
     pure : A -> F A
     <*> : F (A -> B) -> F A -> F B
     func : Functor F
   open Functor func public
 
-record Monad (M : Set l -> Set l') : Set (lsuc l ~U~ l') where
+record Monad M : Set where
   field
     appl : Applicative M
     _>>=_ : M A -> (A -> M B) -> M B
@@ -29,7 +29,7 @@ record Monad (M : Set l -> Set l') : Set (lsuc l ~U~ l') where
   return : A -> M A
   return = pure
 
-record Lattice (A : Set l) : Set l where
+record Lattice A : Set where
   field
     _/\_ : A -> A -> A
     _\/_ : A -> A -> A
@@ -38,23 +38,21 @@ record Lattice (A : Set l) : Set l where
 
 open Lattice {{...}} public
 
-record VarMonad (M : Set l' -> Set l'') (V : Set l -> Set l') : Set (lsuc $ l ~U~ l' ~U~ l'') where
+record VarMonad M (V : Set -> Set) : Set where
   field
-    lift : Set l -> Set l'
-
     new : A -> M (V A)
-    get : V A -> M (lift A)
+    get : V A -> M A
     modify : V A -> (A -> A -x- B) -> M B
 
     mon : Monad M
   open Monad mon public
 
-record LatVarMonad (M : Set l' -> Set l'') (V : Set l -> Set l') : Set (lsuc $ l ~U~ l' ~U~ l'') where
-  field
-    lift : Set l -> Set l'
 
+
+record LatVarMonad M (V : Set -> Set) : Set where
+  field
     new : {{lat : Lattice A}} -> A -> M (V A)
-    get : V A -> M (lift A)
+    get : V A -> M A
     modify : {{lat : Lattice A}} -> V A -> (A -> A -x- B) -> M B
 
     mon : Monad M
@@ -84,8 +82,6 @@ record LatVarMonad (M : Set l' -> Set l'') (V : Set l -> Set l') : Set (lsuc $ l
 
 VarMonad=>LatVarMonad : VarMonad M V -> LatVarMonad M V
 VarMonad=>LatVarMonad vm = record {
-  lift = lift ;
-
   new = new ;
   get = get ;
   modify = \ p f -> modify p (\ v -> v /\ fst (f v) , snd (f v)) ;
@@ -93,28 +89,29 @@ VarMonad=>LatVarMonad vm = record {
   mon = mon }
   where open VarMonad vm
 
-AsmList : (V : Set l -> Set l') -> Set (lsuc l ~U~ l')
-AsmList {l = l} V = List $ Sigma (Set l) (\A -> (A -x- V A))
+AsmList : (V : Set -> Set) -> Set
+AsmList V = List $ Sigma Set (\A -> (A -x- V A))
 
 --TODO: Those need to be threshold functions
-IndrAsmList : (V : Set l -> Set l') -> Set (lsuc l ~U~ l')
-IndrAsmList {l = l} V = List $ Sigma (Set l -x- Set l) (\ (A , B) -> ((A -> Maybe B) -x- B -x- V A))
+IndrAsmList : (V : Set -> Set) -> Set
+IndrAsmList V = List $ Sigma (Set -x- Set) (\ (A , B) -> ((A -> Maybe B) -x- B -x- V A))
 
---TODO: This universe polymorphism looks weird...
-record CLLatVarMonad (M : Set (lsuc l ~U~ l') -> Set l'') (V : Set l -> Set (lsuc l ~U~ l')) : Set (lsuc $ l ~U~ (lsuc l ~U~ l') ~U~ l'') where
+
+record CLLatVarMonad M V : Set where
   field
     lvm : LatVarMonad M V
   open LatVarMonad lvm public
   field
     getReasons : V A -> M (List $ AsmList V)
 
-LatVarMonad=>CLLatVarMonad : LatVarMonad M V -> CLLatVarMonad (M o lift ) (\ A -> V (A -x- (List $ AsmList V) ))
+{-
+LatVarMonad=>CLLatVarMonad : LatVarMonad M V -> CLLatVarMonad M (\ A -> V (A -x- (List $ AsmList V) ))
 LatVarMonad=>CLLatVarMonad lvm = record {
   lvm = record {
-    lift = {!   !} ;
     new = {!   !} ;
     get = {!   !} ;
     modify = {!   !} ;
     mon = {!   !} } ;
   getReasons = {!   !} }
   where open LatVarMonad lvm
+-}
