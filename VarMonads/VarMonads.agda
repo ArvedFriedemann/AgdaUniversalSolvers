@@ -85,8 +85,36 @@ record LatVarMonad (M : Set l' -> Set l'') (V : Set l -> Set l') : Set (lsuc $ l
 VarMonad=>LatVarMonad : VarMonad M V -> LatVarMonad M V
 VarMonad=>LatVarMonad vm = record {
   lift = lift ;
+
   new = new ;
   get = get ;
   modify = \ p f -> modify p (\ v -> v /\ fst (f v) , snd (f v)) ;
+
   mon = mon }
   where open VarMonad vm
+
+AsmList : (V : Set l -> Set l') -> Set (lsuc l ~U~ l')
+AsmList {l = l} V = List $ Sigma (Set l) (\A -> (A -x- V A))
+
+--TODO: Those need to be threshold functions
+IndrAsmList : (V : Set l -> Set l') -> Set (lsuc l ~U~ l')
+IndrAsmList {l = l} V = List $ Sigma (Set l -x- Set l) (\ (A , B) -> ((A -> Maybe B) -x- B -x- V A))
+
+--TODO: This universe polymorphism looks weird...
+record CLLatVarMonad (M : Set (lsuc l ~U~ l') -> Set l'') (V : Set l -> Set (lsuc l ~U~ l')) : Set (lsuc $ l ~U~ (lsuc l ~U~ l') ~U~ l'') where
+  field
+    lvm : LatVarMonad M V
+  open LatVarMonad lvm public
+  field
+    getReasons : V A -> M (List $ AsmList V)
+
+LatVarMonad=>CLLatVarMonad : LatVarMonad M V -> CLLatVarMonad (M o lift ) (\ A -> V (A -x- (List $ AsmList V) ))
+LatVarMonad=>CLLatVarMonad lvm = record {
+  lvm = record {
+    lift = {!   !} ;
+    new = {!   !} ;
+    get = {!   !} ;
+    modify = {!   !} ;
+    mon = {!   !} } ;
+  getReasons = {!   !} }
+  where open LatVarMonad lvm
