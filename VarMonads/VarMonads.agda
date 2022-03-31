@@ -1,4 +1,4 @@
-{-# OPTIONS --type-in-type #-}
+{-# OPTIONS --type-in-type --overlapping-instances #-}
 
 module VarMonads.VarMonads where
 
@@ -6,7 +6,7 @@ open import AgdaAsciiPrelude.AsciiPrelude
 
 private
   variable
-    A B L : Set
+    A B L S : Set
     M V F C : Set -> Set
 
 record Functor (F : Set -> Set) : Set  where
@@ -26,8 +26,14 @@ record Monad M : Set where
     appl : Applicative M
     _>>=_ : M A -> (A -> M B) -> M B
   open Applicative appl public
+
   return : A -> M A
   return = pure
+
+  _>>_ : M A -> M B -> M B
+  _>>_ m1 m2 = m1 >>= const m2
+
+--open Monad {{...}} public
 
 record Lattice A : Set where
   field
@@ -93,6 +99,7 @@ record Container (C : Set -> Set) : Set where
   field
     empty : C A
     singleton : A -> C A
+open Container {{...}} public
 {-}
 record LatCont (C : Set -> Set) : Set where
   field
@@ -113,7 +120,6 @@ IndrAsmCont C V = C $ Sigma (Set -x- Set) (\ (A , B) -> ((A -> Maybe B) -x- B -x
 record CLLatVarMonad M V C : Set where
   field
     lvm : LatVarMonad M V
-    cont : Container C
   open LatVarMonad lvm public
   field
     getReasons : V A -> M (C $ AsmCont C V)
@@ -122,17 +128,75 @@ instance
   lat-to-tup : {{latA : Lattice A}} -> {{latB : Lattice B}} -> Lattice (A -x- B)
   lat-to-tup = {!!}
 
-  listLattice : {{Container C}} -> Lattice (C A)
-  listLattice = {!!}
+  contLattice : {{cont : Container C}} -> Lattice (C A)
+  contLattice = {!!}
 
-LatVarMonad=>CLLatVarMonad : Container C -> LatVarMonad M V -> CLLatVarMonad M (\ A -> V (A -x- (C $ AsmCont C V) )) C
-LatVarMonad=>CLLatVarMonad cont lvm = record {
+record TrackLatVarMonad M V C : Set where
+  field
+    lvm : LatVarMonad M V
+    getCurrAssignments : M (AsmCont C V)
+
+record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
+  field
+    liftT : M A -> T M A
+open MonadTrans {{...}} public
+
+record StateT S (M : Set -> Set) A : Set where
+  field
+    runStateT : S -> M (A -x- S)
+
+state : {{mon : Monad M}} -> (S -> (B -x- S)) -> StateT S M B
+state {{mon = mon}} f = record { runStateT = return o f }
+  where open Monad mon
+
+modifyS : {{mon : Monad M}} -> (S -> S) -> StateT S M T
+modifyS f = state (\ s -> (top , f s))
+
+getS : {{mon : Monad M}} -> StateT S M S
+getS = state \ x -> x , x
+
+putS : {{mon : Monad M}} -> S -> StateT S M T
+putS s = state $ const $ (top , s)
+
+instance
+
+  monad-stateT : {{mon : Monad M}} -> Monad (StateT S M)
+  monad-stateT {{mon = mon}} = record {
+    appl = {!   !} ;
+    _>>=_ = \ m fm -> record{runStateT = \ s -> (StateT.runStateT m s >>= \ (a , s') -> StateT.runStateT (fm a) s') } }
+    where open Monad mon
+
+  StateTMonadTrans : MonadTrans (StateT S)
+  StateTMonadTrans = {!!}
+
+
+
+
+
+LatVarMonad=>TrackLatVarMonad : {{cont : Container C}} -> LatVarMonad M V -> TrackLatVarMonad (StateT (AsmCont C V) M) V C
+LatVarMonad=>TrackLatVarMonad lvm = record {
   lvm = record {
-    new = \ x -> new (x , empty) ;
-    get = {!   !} ;
+    mon = monT;
+    new = liftT o new ;
+    get = \ {A = A} p -> liftT (get p) >>= (\ v -> modifyS {{mon = mon}} (_/\ singleton (A , v , p)) >> return v)  ;
+    modify = \ p f -> liftT (modify p f) };
+  getCurrAssignments = getS {{mon = mon}}
+  }
+  where
+    open LatVarMonad lvm hiding (return; _>>=_; _>>_)
+    monT = monad-stateT {{mon = mon}}
+    open Monad monT
+
+{-
+--TODO: Tracking should be done separately
+LatVarMonad=>CLLatVarMonad : {{cont : Container C}} -> LatVarMonad M V -> CLLatVarMonad M (\ A -> V (A -x- (C $ AsmCont C V) )) C
+LatVarMonad=>CLLatVarMonad lvm = record {
+  lvm = record {
+    new = new o ( _, empty) ;
+    get = (fst <$>_) o get ;
     modify = {!   !} ;
     mon = {!   !} } ;
   getReasons = {!   !} }
   where
     open LatVarMonad lvm
-    open Container cont
+-}
