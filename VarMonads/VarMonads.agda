@@ -6,7 +6,7 @@ open import AgdaAsciiPrelude.AsciiPrelude
 
 private
   variable
-    A B L S : Set
+    A B L S D : Set
     M V F C : Set -> Set
 
 record Functor (F : Set -> Set) : Set  where
@@ -83,6 +83,22 @@ record LatVarMonad M (V : Set -> Set) : Set where
   modify' p f = modify p (\ x -> (f x , top) )
 
   put : {{lat : Lattice A}} -> V A -> A -> M T
+  put p v = modify' p (const v)
+
+record SpecLatVarMonad (M : Set -> Set) (V : Set -> Set) B : Set where
+  field
+    {{lat}} : Lattice B
+    get : V A -> M B
+    --lattice instance here technically not needed, because A value never touched.
+    --However, underlying modify is still used, so lattice instance comes in handy
+    modify : {{Lattice A}} -> V A -> (B -> B -x- D) -> M D
+
+    overlap {{mon}} : Monad M
+
+  modify' : {{Lattice A}} -> V A -> (B -> B) -> M T
+  modify' p f = modify p (\ x -> (f x , top))
+
+  put : {{Lattice A}} -> V A -> B -> M T
   put p v = modify' p (const v)
 
 
@@ -187,16 +203,37 @@ LatVarMonad=>TrackLatVarMonad lvm = record {
     open LatVarMonad lvm hiding (return; _>>=_; _>>_)
     open Monad monT
 
-{-
---TODO: Tracking should be done separately
-LatVarMonad=>CLLatVarMonad : {{cont : Container C}} -> LatVarMonad M V -> CLLatVarMonad M (\ A -> V (A -x- (C $ AsmCont C V) )) C
-LatVarMonad=>CLLatVarMonad lvm = record {
-  lvm = record {
-    new = new o ( _, empty) ;
+ProdPtr : (V : Set -> Set) -> (B : Set) -> (A : Set) -> Set
+ProdPtr V B A = V (A -x- B)
+
+productLatVarMonad : (B : Set) -> {{lat : Lattice B}} -> LatVarMonad M V ->
+  LatVarMonad M (ProdPtr V B) -x- SpecLatVarMonad M (ProdPtr V B) B
+productLatVarMonad B {{lat = lat}} lvm =
+  (record {
+    new = \x -> new (x , ltop) ;
     get = (fst <$>_) o get ;
-    modify = {!   !} ;
-    mon = {!   !} } ;
-  getReasons = {!   !} }
+    modify = \ p f -> modify p (\(v , b) -> let v' , res = f v in (v' , b) , res) }) ,
+  (record {
+    get = (snd <$>_) o get ;
+    modify = \ p f -> modify p (\(v , b) -> let b' , res = f b in (v , b') , res) })
+  where open LatVarMonad lvm
+
+liftSpecLatVarMon : forall {T} -> {{monT : MonadTrans T}} -> {{mon : Monad M}} ->
+  SpecLatVarMonad M V B -> SpecLatVarMonad (T M) V B
+liftSpecLatVarMon splvm = {!!}
+  where open SpecLatVarMonad splvm
+
+--TODO: Tracking should be done separately
+LatVarMonad=>CLLatVarMonad : {{cont : Container C}} -> LatVarMonad M V ->
+  CLLatVarMonad M (ProdPtr V (C $ AsmCont C V)) C --TODO: pointer type here changes. Problem with fixpoint
+LatVarMonad=>CLLatVarMonad {C = C} {V = V} lvm = record { 
+    lvm = {!   !} ;
+    getReasons = {! SpecLatVarMonad.get reasonContMonT  !} }
   where
-    open LatVarMonad lvm
--}
+    singleReason = AsmCont C V
+    reasonType = C singleReason
+    tpl = productLatVarMonad reasonType lvm
+    lvm' = fst tpl
+    reasonContMon = snd tpl
+    lvmTrack = LatVarMonad=>TrackLatVarMonad lvm'
+    reasonContMonT = liftSpecLatVarMon reasonContMon
