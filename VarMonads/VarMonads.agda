@@ -50,7 +50,7 @@ record VarMonad M (V : Set -> Set) : Set where
     get : V A -> M A
     modify : V A -> (A -> A -x- B) -> M B
 
-    mon : Monad M
+    overlap {{mon}} : Monad M
   open Monad mon public
 
 
@@ -61,7 +61,7 @@ record LatVarMonad M (V : Set -> Set) : Set where
     get : V A -> M A
     modify : {{lat : Lattice A}} -> V A -> (A -> A -x- B) -> M B
 
-    mon : Monad M
+    overlap {{mon}} : Monad M
   open Monad mon public
     --Properties:
     {-
@@ -178,13 +178,13 @@ LatVarMonad=>TrackLatVarMonad lvm = record {
   lvm = record {
     mon = monT;
     new = liftT o new ;
-    get = \ {A = A} p -> liftT (get p) >>= (\ v -> modifyS {{mon = mon}} (_/\ singleton (A , v , p)) >> return v)  ;
+    get = \ {A = A} p -> liftT (get p) >>= (\ v -> modifyS (_/\ singleton (A , v , p)) >> return v)  ;
     modify = \ p f -> liftT (modify p f) };
-  getCurrAssignments = getS {{mon = mon}}
+  getCurrAssignments = getS
   }
   where
+    monT = monad-stateT
     open LatVarMonad lvm hiding (return; _>>=_; _>>_)
-    monT = monad-stateT {{mon = mon}}
     open Monad monT
 
 {-
