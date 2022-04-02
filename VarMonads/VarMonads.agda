@@ -1,4 +1,5 @@
 {-# OPTIONS --type-in-type --overlapping-instances #-}
+--{-# OPTIONS --guardedness #-}
 
 module VarMonads.VarMonads where
 
@@ -12,20 +13,21 @@ private
 record Functor (F : Set -> Set) : Set  where
   field
     _<$>_ : (A -> B) -> F A -> F B
-
+open Functor {{...}}
 
 record Applicative F : Set where
   field
     pure : A -> F A
     <*> : F (A -> B) -> F A -> F B
-    func : Functor F
-  open Functor func public
+    overlap {{func}} : Functor F
+  --open Functor func public
+open Applicative {{...}}
 
 record Monad M : Set where
   field
-    appl : Applicative M
+    overlap {{appl}} : Applicative M
     _>>=_ : M A -> (A -> M B) -> M B
-  open Applicative appl public
+  --open Applicative appl public
 
   return : A -> M A
   return = pure
@@ -42,7 +44,7 @@ record Lattice A : Set where
     ltop : A
     lbot : A
 
-open Lattice {{...}} public
+open Lattice {{...}}
 
 record VarMonad M (V : Set -> Set) : Set where
   field
@@ -218,15 +220,43 @@ productLatVarMonad B {{lat = lat}} lvm =
     modify = \ p f -> modify p (\(v , b) -> let b' , res = f b in (v , b') , res) })
   where open LatVarMonad lvm
 
-liftSpecLatVarMon : forall {T} -> {{monT : MonadTrans T}} -> {{mon : Monad M}} ->
+liftSpecLatVarMon : forall {T} -> {{monT : MonadTrans T}} -> {{monmonT : Monad (T M)}} ->
   SpecLatVarMonad M V B -> SpecLatVarMonad (T M) V B
-liftSpecLatVarMon splvm = {!!}
+liftSpecLatVarMon splvm = record {
+  get = liftT o get ;
+  modify = \ p f -> liftT $ modify p f }
   where open SpecLatVarMonad splvm
 
+{-# NO_POSITIVITY_CHECK #-}
+data Fix (F : Set -> Set) : Set where
+  In : F (Fix F) -> Fix F
+
+{-# TERMINATING #-}
+foldF : {F : Set -> Set} -> {{func : Functor F}} -> (F A -> A) -> Fix F -> A
+foldF alg (In x) = alg (foldF alg <$> x)
+
+{-# NO_POSITIVITY_CHECK #-}
+data FixF (F : (Set -> Set) -> Set -> Set) : Set -> Set where
+  InF : (F (FixF F) A) -> FixF F A
+
+FixW : {A : Set} -> (F : A -> A) -> A
+FixW F = {!!} --???
+{-
+data FixW {A : Set} (F : A -> A) : A where
+  InW : F (FixW F) -> FixW F
+-}
+RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
+RecPtr V F = FixF (\ V' A -> V (F V' A) )
+
+--ProdPtr V (C $ AsmCont C V)
+-- V (A -x- C (V (A -x- C (...) )))
+-- => PtrTp V C A = V (A -x- PtrTp V C A)
+-- => PtrTp V C A = In (V (A -x- PtrTp V C A))
+-- => PtrTp V C A = Fix (\ V' -> V (A -x- V'))
 --TODO: Tracking should be done separately
 LatVarMonad=>CLLatVarMonad : {{cont : Container C}} -> LatVarMonad M V ->
-  CLLatVarMonad M (ProdPtr V (C $ AsmCont C V)) C --TODO: pointer type here changes. Problem with fixpoint
-LatVarMonad=>CLLatVarMonad {C = C} {V = V} lvm = record { 
+  CLLatVarMonad M (RecPtr V (\ V' A -> A -x- (C $ AsmCont C V')) ) C --TODO: pointer type here changes. Problem with fixpoint
+LatVarMonad=>CLLatVarMonad {C = C} {V = V} lvm = record {
     lvm = {!   !} ;
     getReasons = {! SpecLatVarMonad.get reasonContMonT  !} }
   where
