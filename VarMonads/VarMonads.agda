@@ -239,6 +239,9 @@ foldF alg (In x) = alg (foldF alg <$> x)
 data FixF (F : (Set -> Set) -> Set -> Set) : Set -> Set where
   InF : (F (FixF F) A) -> FixF F A
 
+fixCont : {F : (Set -> Set) -> Set -> Set} -> FixF F A -> F (FixF F) A
+fixCont (InF x) = x
+
 FixW : {A : Set} -> (F : A -> A) -> A
 FixW F = {!!} --???
 {-
@@ -248,6 +251,26 @@ data FixW {A : Set} (F : A -> A) : A where
 RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
 RecPtr V F = FixF (\ V' A -> V (F V' A) )
 
+RecTupPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
+RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
+
+ReasPtr : (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
+ReasPtr V C = RecTupPtr V (\ V' -> C $ AsmCont C V')
+
+recProductVarMonad : {A : Set} -> {V : Set -> Set} -> {B : (Set -> Set) -> Set} ->
+  {{lat : Lattice (B (RecTupPtr V B))}} ->
+  LatVarMonad M V ->
+  LatVarMonad M (RecTupPtr V B) -x- SpecLatVarMonad M (RecTupPtr V B) (B (RecTupPtr V B))
+recProductVarMonad lvm = (record {
+    new = {!   !} ; --\ x -> InF <$> new (x , ltop) ;
+    get = {!   !} ;
+    modify = {!   !} }) ,
+  (record {
+    get = {!   !} ;
+    modify = {!   !} })
+  where open LatVarMonad lvm
+
+
 --ProdPtr V (C $ AsmCont C V)
 -- V (A -x- C (V (A -x- C (...) )))
 -- => PtrTp V C A = V (A -x- PtrTp V C A)
@@ -255,12 +278,12 @@ RecPtr V F = FixF (\ V' A -> V (F V' A) )
 -- => PtrTp V C A = Fix (\ V' -> V (A -x- V'))
 --TODO: Tracking should be done separately
 LatVarMonad=>CLLatVarMonad : {{cont : Container C}} -> LatVarMonad M V ->
-  CLLatVarMonad M (RecPtr V (\ V' A -> A -x- (C $ AsmCont C V')) ) C --TODO: pointer type here changes. Problem with fixpoint
+  CLLatVarMonad M (ReasPtr V C) C --TODO: pointer type here changes. Problem with fixpoint
 LatVarMonad=>CLLatVarMonad {C = C} {V = V} lvm = record {
     lvm = {!   !} ;
-    getReasons = {! SpecLatVarMonad.get reasonContMonT  !} }
+    getReasons = {! tpl  !} }
   where
-    singleReason = AsmCont C V
+    singleReason = AsmCont C (ReasPtr V C)
     reasonType = C singleReason
     tpl = productLatVarMonad reasonType lvm
     lvm' = fst tpl
