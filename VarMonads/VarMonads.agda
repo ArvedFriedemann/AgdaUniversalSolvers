@@ -262,7 +262,7 @@ recProductVarMonad : {A : Set} -> {V : Set -> Set} -> {B : (Set -> Set) -> Set} 
   LatVarMonad M V ->
   LatVarMonad M (RecTupPtr V B) -x- SpecLatVarMonad M (RecTupPtr V B) (B (RecTupPtr V B))
 recProductVarMonad lvm = (record {
-    new = {!   !} ; --\ x -> InF <$> new (x , ltop) ;
+    new = \ x -> InF <$> {!!} ; --\ x -> InF <$> new (x , ltop) ;
     get = {!   !} ;
     modify = {!   !} }) ,
   (record {
