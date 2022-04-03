@@ -227,27 +227,56 @@ liftSpecLatVarMon splvm = record {
   modify = \ p f -> liftT $ modify p f }
   where open SpecLatVarMonad splvm
 
-{-# NO_POSITIVITY_CHECK #-}
+Fix : (F : Set -> Set) -> Set
+Fix F = {A : Set} -> (F A -> A) -> A
+
+foldF : (F A -> A) -> Fix F -> A
+foldF alg fa = fa alg
+
+data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
+  Inl : F A -> (F :+: G) A
+  Inr : G A -> (F :+: G) A
+
+data Lit (A : Set) : Set where
+  litC : Lit A
+
+data Add (A : Set) : Set where
+  addC : A -> A -> Add A
+
+lit : Fix (Lit :+: Add)
+lit alg = alg (Inl litC)
+
+add : Fix (Lit :+: Add) -> Fix (Lit :+: Add) -> Fix (Lit :+: Add)
+add f1 f2 alg = alg (Inr (addC (f1 alg) (f2 alg)))
+
+test : Fix (Lit :+: Add)
+test = add lit (add lit lit)
+
+--{-# NO_POSITIVITY_CHECK #-}
+{-
 data Fix (F : Set -> Set) : Set where
   In : F (Fix F) -> Fix F
-
-{-# TERMINATING #-}
+-}
+--{-# TERMINATING #-}
+{-
 foldF : {F : Set -> Set} -> {{func : Functor F}} -> (F A -> A) -> Fix F -> A
 foldF alg (In x) = alg (foldF alg <$> x)
-
-{-# NO_POSITIVITY_CHECK #-}
+-}
+--{-# NO_POSITIVITY_CHECK #-}
+{-
 data FixF (F : (Set -> Set) -> Set -> Set) : Set -> Set where
   InF : (F (FixF F) A) -> FixF F A
+-}
+
+{-
 
 fixCont : {F : (Set -> Set) -> Set -> Set} -> FixF F A -> F (FixF F) A
 fixCont (InF x) = x
 
 FixW : {A : Set} -> (F : A -> A) -> A
 FixW F = {!!} --???
-{-
-data FixW {A : Set} (F : A -> A) : A where
-  InW : F (FixW F) -> FixW F
--}
+
+
 RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
 RecPtr V F = FixF (\ V' A -> V (F V' A) )
 
@@ -290,3 +319,4 @@ LatVarMonad=>CLLatVarMonad {C = C} {V = V} lvm = record {
     reasonContMon = snd tpl
     lvmTrack = LatVarMonad=>TrackLatVarMonad lvm'
     reasonContMonT = liftSpecLatVarMon reasonContMon
+-}
