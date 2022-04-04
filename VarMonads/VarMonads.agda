@@ -247,10 +247,23 @@ lit : Fix (Lit :+: Add)
 lit alg = alg (Inl litC)
 
 add : Fix (Lit :+: Add) -> Fix (Lit :+: Add) -> Fix (Lit :+: Add)
-add f1 f2 alg = alg (Inr (addC (f1 alg) (f2 alg)))
+add f1 f2 alg = alg (Inr (addC (foldF alg f1) (foldF alg f2)))
 
 test : Fix (Lit :+: Add)
 test = add lit (add lit lit)
+
+FixF : (F : (Set -> Set) -> Set -> Set) -> Set -> Set
+FixF F A = {B : Set -> Set} -> (F B A -> B A) -> B A
+
+RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
+RecPtr V F = FixF (\ V' A -> V (F V' A) )
+
+testRefVarMonad : LatVarMonad M V -> {{cont : Container C}} -> LatVarMonad M (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') )))
+testRefVarMonad {V = V} {C = C} lvm = record {
+    new = \ {A = A} x -> (\ p -> {!!} ) <$> new ( x , empty ) ;
+    get = {!   !} ;
+    modify = {!   !} }
+  where open LatVarMonad lvm
 
 --{-# NO_POSITIVITY_CHECK #-}
 {-
