@@ -155,6 +155,7 @@ record TrackLatVarMonad M V C : Set where
   field
     lvm : LatVarMonad M V
     getCurrAssignments : M (AsmCont C V)
+  open LatVarMonad lvm public
 
 record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
   field
@@ -235,24 +236,6 @@ Fix F = {A : Set} -> (F A -> A) -> A
 foldF : (F A -> A) -> Fix F -> A
 foldF alg fa = fa alg
 
-data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
-  Inl : F A -> (F :+: G) A
-  Inr : G A -> (F :+: G) A
-
-data Lit (A : Set) : Set where
-  litC : Lit A
-
-data Add (A : Set) : Set where
-  addC : A -> A -> Add A
-
-lit : Fix (Lit :+: Add)
-lit alg = alg (Inl litC)
-
-add : Fix (Lit :+: Add) -> Fix (Lit :+: Add) -> Fix (Lit :+: Add)
-add f1 f2 alg = alg (Inr (addC (foldF alg f1) (foldF alg f2)))
-
-test : Fix (Lit :+: Add)
-test = add lit (add lit lit)
 
 {-# NO_POSITIVITY_CHECK #-}
 record FixF (F : (Set -> Set) -> Set -> Set) (A : Set) : Set where
@@ -290,52 +273,11 @@ recProductVarMonad lvm = (record {
       modify = (\ p f -> modify p \ (x , lst) -> (x , (fst $ f $ lst)) , (snd $ f $ lst)) o FixF.InF })
   where open LatVarMonad lvm
 
---{-# NO_POSITIVITY_CHECK #-}
-{-
-data Fix (F : Set -> Set) : Set where
-  In : F (Fix F) -> Fix F
--}
---{-# TERMINATING #-}
-{-
-foldF : {F : Set -> Set} -> {{func : Functor F}} -> (F A -> A) -> Fix F -> A
-foldF alg (In x) = alg (foldF alg <$> x)
--}
---{-# NO_POSITIVITY_CHECK #-}
-{-
-data FixF (F : (Set -> Set) -> Set -> Set) : Set -> Set where
-  InF : (F (FixF F) A) -> FixF F A
--}
-
-{-
-
-fixCont : {F : (Set -> Set) -> Set -> Set} -> FixF F A -> F (FixF F) A
-fixCont (InF x) = x
-
-FixW : {A : Set} -> (F : A -> A) -> A
-FixW F = {!!} --???
-
-
-RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
-RecPtr V F = FixF (\ V' A -> V (F V' A) )
-
-RecTupPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
-RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
-
-ReasPtr : (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
-ReasPtr V C = RecTupPtr V (\ V' -> C $ AsmCont C V')
-
-recProductVarMonad : {A : Set} -> {V : Set -> Set} -> {B : (Set -> Set) -> Set} ->
-  {{lat : Lattice (B (RecTupPtr V B))}} ->
+reasProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
+  {{lat : Lattice (C $ AsmCont C (ReasPtr V C))}} ->
   LatVarMonad M V ->
-  LatVarMonad M (RecTupPtr V B) -x- SpecLatVarMonad M (RecTupPtr V B) (B (RecTupPtr V B))
-recProductVarMonad lvm = (record {
-    new = \ x -> InF <$> {!!} ; --\ x -> InF <$> new (x , ltop) ;
-    get = {!   !} ;
-    modify = {!   !} }) ,
-  (record {
-    get = {!   !} ;
-    modify = {!   !} })
-  where open LatVarMonad lvm
+  LatVarMonad M (ReasPtr V C) -x- SpecLatVarMonad M (ReasPtr V C) (C $ AsmCont C (ReasPtr V C))
+reasProductVarMonad lvm = recProductVarMonad lvm
 
 
 --ProdPtr V (C $ AsmCont C V)
@@ -344,17 +286,50 @@ recProductVarMonad lvm = (record {
 -- => PtrTp V C A = In (V (A -x- PtrTp V C A))
 -- => PtrTp V C A = Fix (\ V' -> V (A -x- V'))
 --TODO: Tracking should be done separately
-LatVarMonad=>CLLatVarMonad : {{cont : Container C}} -> LatVarMonad M V ->
-  CLLatVarMonad M (ReasPtr V C) C --TODO: pointer type here changes. Problem with fixpoint
-LatVarMonad=>CLLatVarMonad {C = C} {V = V} lvm = record {
-    lvm = {!   !} ;
-    getReasons = {! tpl  !} }
+--The weird naming is necessary due to a but in my current agda version.
+LatVarMonad=>CLLatVarMonad :
+  {{cont : Container C}} ->
+  ({A : Set} -> Lattice (C A)) ->
+  {{lat : Lattice (AsmCont C (ReasPtr V C))}} ->
+  LatVarMonad M V ->
+  CLLatVarMonad (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C) C --TODO: pointer type here changes. Problem with fixpoint
+LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
+    lvm = record {
+      new = new ;
+      get = get ;
+      modify = \ p f -> getR p >>= \r -> putR p r >> modify p f } ; --TODO: maybe putting the reason and the value should be just one modify operation...
+    getReasons = getR }
   where
-    singleReason = AsmCont C (ReasPtr V C)
-    reasonType = C singleReason
-    tpl = productLatVarMonad reasonType lvm
-    lvm' = fst tpl
-    reasonContMon = snd tpl
-    lvmTrack = LatVarMonad=>TrackLatVarMonad lvm'
-    reasonContMonT = liftSpecLatVarMon reasonContMon
+    tpl = reasProductVarMonad {C = C} {{lat = latFkt}} lvm
+    lvm' = fst $ tpl
+    reaslvm = snd $ tpl
+    traclvm = LatVarMonad=>TrackLatVarMonad lvm'
+    liftReaslvm = liftSpecLatVarMon reaslvm
+    open TrackLatVarMonad traclvm
+    open SpecLatVarMonad liftReaslvm renaming (get to getR; modify to modifyR; put to putR)
+
+
+
+
+
+
+{-
+data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
+  Inl : F A -> (F :+: G) A
+  Inr : G A -> (F :+: G) A
+
+data Lit (A : Set) : Set where
+  litC : Lit A
+
+data Add (A : Set) : Set where
+  addC : A -> A -> Add A
+
+lit : Fix (Lit :+: Add)
+lit alg = alg (Inl litC)
+
+add : Fix (Lit :+: Add) -> Fix (Lit :+: Add) -> Fix (Lit :+: Add)
+add f1 f2 alg = alg (Inr (addC (foldF alg f1) (foldF alg f2)))
+
+test : Fix (Lit :+: Add)
+test = add lit (add lit lit)
 -}
