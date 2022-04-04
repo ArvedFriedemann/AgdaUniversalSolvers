@@ -1,5 +1,5 @@
 {-# OPTIONS --type-in-type --overlapping-instances #-}
---{-# OPTIONS --guardedness #-}
+{-# OPTIONS --guardedness #-}
 
 module VarMonads.VarMonads where
 
@@ -252,18 +252,29 @@ add f1 f2 alg = alg (Inr (addC (foldF alg f1) (foldF alg f2)))
 test : Fix (Lit :+: Add)
 test = add lit (add lit lit)
 
+{-# NO_POSITIVITY_CHECK #-}
+record FixF (F : (Set -> Set) -> Set -> Set) (A : Set) : Set where
+  constructor FixFC
+  coinductive
+  field
+    InF : F (FixF F) A
+
+{-}
 FixF : (F : (Set -> Set) -> Set -> Set) -> Set -> Set
 FixF F A = {B : Set -> Set} -> (F B A -> B A) -> B A
+-}
 
 RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
 RecPtr V F = FixF (\ V' A -> V (F V' A) )
 
 testRefVarMonad : LatVarMonad M V -> {{cont : Container C}} -> LatVarMonad M (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') )))
 testRefVarMonad {V = V} {C = C} lvm = record {
-    new = \ {A = A} x -> (\ p -> {!!} ) <$> new ( x , empty ) ;
-    get = {!   !} ;
+    new = (FixFC <$>_) o new o ( _, empty ) ;
+    get = ((fst <$>_) o get) o FixF.InF ;
     modify = {!   !} }
   where open LatVarMonad lvm
+
+
 
 --{-# NO_POSITIVITY_CHECK #-}
 {-
