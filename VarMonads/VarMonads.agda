@@ -1,4 +1,5 @@
-{-# OPTIONS --type-in-type --overlapping-instances #-}
+{-# OPTIONS --type-in-type #-}
+-- {-# OPTIONS --overlapping-instances #-}
 {-# OPTIONS --guardedness #-}
 
 module VarMonads.VarMonads where
@@ -118,14 +119,15 @@ record Container (C : Set -> Set) : Set where
     empty : C A
     singleton : A -> C A
 open Container {{...}} public
-{-}
+
 record LatCont (C : Set -> Set) : Set where
   field
-    cont : Container C
-    lat : Lattice (C A)
-  open Container cont public
-  open Lattice lat public
--}
+    {{cont}} : Container C
+    {{lat}} : {A} -> Lattice (C A)
+  instance
+    latInst : {A} -> Lattice (C A)
+    latInst = lat
+
 
 AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
 AsmCont C V = C $ Sigma Set (\A -> (A -x- V A))
@@ -146,8 +148,8 @@ instance
   lat-to-tup : {{latA : Lattice A}} -> {{latB : Lattice B}} -> Lattice (A -x- B)
   lat-to-tup = {!!}
 
-  contLattice : {{cont : Container C}} -> Lattice (C A)
-  contLattice = {!!}
+  --contLattice : {{cont : Container C}} -> Lattice (C A)
+  --contLattice = {!!}
 
 record TrackLatVarMonad M V C : Set where
   field
@@ -191,7 +193,7 @@ instance
 
 
 
-LatVarMonad=>TrackLatVarMonad : {{cont : Container C}} -> LatVarMonad M V -> TrackLatVarMonad (StateT (AsmCont C V) M) V C
+LatVarMonad=>TrackLatVarMonad : {{cont : Container C}} -> {{lat : Lattice (AsmCont C V)}} -> LatVarMonad M V -> TrackLatVarMonad (StateT (AsmCont C V) M) V C
 LatVarMonad=>TrackLatVarMonad lvm = record {
   lvm = record {
     mon = monT;
@@ -259,22 +261,34 @@ record FixF (F : (Set -> Set) -> Set -> Set) (A : Set) : Set where
   field
     InF : F (FixF F) A
 
-{-}
-FixF : (F : (Set -> Set) -> Set -> Set) -> Set -> Set
-FixF F A = {B : Set -> Set} -> (F B A -> B A) -> B A
--}
-
 RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
 RecPtr V F = FixF (\ V' A -> V (F V' A) )
 
-testRefVarMonad : LatVarMonad M V -> {{cont : Container C}} -> LatVarMonad M (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') )))
+testRefVarMonad : LatVarMonad M V -> {{cont : LatCont C}} -> LatVarMonad M (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') )))
 testRefVarMonad {V = V} {C = C} lvm = record {
     new = (FixFC <$>_) o new o ( _, empty ) ;
     get = ((fst <$>_) o get) o FixF.InF ;
     modify = (\ p f -> modify p \ (x , lst) -> ((fst $ f x) , lst) , (snd $ f x)) o FixF.InF }
   where open LatVarMonad lvm
 
+RecTupPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
+RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
 
+ReasPtr : (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
+ReasPtr V C = RecTupPtr V (\ V' -> C $ AsmCont C V')
+
+recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
+  {{lat : Lattice (F (RecTupPtr V F))}} ->
+  LatVarMonad M V ->
+  LatVarMonad M (RecTupPtr V F) -x- SpecLatVarMonad M (RecTupPtr V F) (F (RecTupPtr V F))
+recProductVarMonad lvm = (record {
+      new = (FixFC <$>_) o new o (_, ltop) ;
+      get = ((fst <$>_) o get) o FixF.InF ;
+      modify = (\ p f -> modify p \ (x , lst) -> ((fst $ f x) , lst) , (snd $ f x)) o FixF.InF }) ,
+    (record {
+      get = ((snd <$>_) o get) o FixF.InF ;
+      modify = (\ p f -> modify p \ (x , lst) -> (x , (fst $ f $ lst)) , (snd $ f $ lst)) o FixF.InF })
+  where open LatVarMonad lvm
 
 --{-# NO_POSITIVITY_CHECK #-}
 {-
