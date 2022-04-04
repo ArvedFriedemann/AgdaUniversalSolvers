@@ -297,7 +297,9 @@ LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
     lvm = record {
       new = new ;
       get = get ;
-      modify = \ p f -> getR p >>= \r -> putR p r >> modify p f } ; --TODO: maybe putting the reason and the value should be just one modify operation...
+      modify = \ p f -> getR p >>= \r -> putR p r >> modify p f } ;
+      --TODO: maybe putting the reason and the value should be just one modify operation...
+      --TODO: this currently does not store which part of the lattice the reason caused...
     getReasons = getR }
   where
     tpl = reasProductVarMonad {C = C} {{lat = latFkt}} lvm
