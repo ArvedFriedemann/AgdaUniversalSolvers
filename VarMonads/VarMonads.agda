@@ -271,7 +271,7 @@ testRefVarMonad : LatVarMonad M V -> {{cont : Container C}} -> LatVarMonad M (Re
 testRefVarMonad {V = V} {C = C} lvm = record {
     new = (FixFC <$>_) o new o ( _, empty ) ;
     get = ((fst <$>_) o get) o FixF.InF ;
-    modify = {!   !} }
+    modify = (\ p f -> modify p \ (x , lst) -> ((fst $ f x) , lst) , (snd $ f x)) o FixF.InF }
   where open LatVarMonad lvm
 
 
