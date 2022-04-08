@@ -144,6 +144,18 @@ record CLLatVarMonad M V C : Set where
   field
     getReasons : V A -> M (C $ AsmCont C V)
 
+{-}
+--TODO: Does not terminate yet (might have circular reasons)
+
+getRecReasons : {lvm : CLLatVarMonad M V C} -> V A -> M (AsmCont C V)
+getRecReasons {lvm = lvm} p = do
+    res <- getReasons p
+    if null $ filter null res
+    then let res' = head res in join $ forM res' getRecReasons
+    else return empty
+  where open CLLatVarMonad lvm
+  -}
+
 instance
   lat-to-tup : {{latA : Lattice A}} -> {{latB : Lattice B}} -> Lattice (A -x- B)
   lat-to-tup = {!!}
@@ -295,9 +307,14 @@ LatVarMonad=>CLLatVarMonad :
   CLLatVarMonad (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C) C --TODO: pointer type here changes. Problem with fixpoint
 LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
     lvm = record {
-      new = new ;
+      new = \x -> do
+        p <- new x
+        r <- getCurrAssignments
+        putR p (singleton r)
+        return p
+      ;
       get = get ;
-      modify = \ p f -> getR p >>= \r -> putR p r >> modify p f } ;
+      modify = \ p f -> getCurrAssignments >>= \r -> putR p (singleton r) >> modify p f } ;
       --TODO: maybe putting the reason and the value should be just one modify operation...
       --TODO: this currently does not store which part of the lattice the reason caused...
     getReasons = getR }
