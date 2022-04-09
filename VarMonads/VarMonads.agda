@@ -19,7 +19,7 @@ open Functor {{...}}
 record Applicative F : Set where
   field
     pure : A -> F A
-    <*> : F (A -> B) -> F A -> F B
+    _<*>_ : F (A -> B) -> F A -> F B
     overlap {{func}} : Functor F
   --open Functor func public
 open Applicative {{...}}
@@ -36,7 +36,7 @@ record Monad M : Set where
   _>>_ : M A -> M B -> M B
   _>>_ m1 m2 = m1 >>= const m2
 
---open Monad {{...}} public
+open Monad {{...}} public
 
 record Lattice A : Set where
   field
@@ -54,7 +54,7 @@ record VarMonad M (V : Set -> Set) : Set where
     modify : V A -> (A -> A -x- B) -> M B
 
     overlap {{mon}} : Monad M
-  open Monad mon public
+  --open Monad mon public
 
 
 
@@ -65,7 +65,7 @@ record LatVarMonad M (V : Set -> Set) : Set where
     modify : {{lat : Lattice A}} -> V A -> (A -> A -x- B) -> M B
 
     overlap {{mon}} : Monad M
-  open Monad mon public
+  --open Monad mon public
     --Properties:
     {-
     --value of a variable only every increases exactly by values given through modify
@@ -158,7 +158,14 @@ getRecReasons {lvm = lvm} p = do
 
 instance
   lat-to-tup : {{latA : Lattice A}} -> {{latB : Lattice B}} -> Lattice (A -x- B)
-  lat-to-tup = {!!}
+  lat-to-tup {{latA}} {{latB}} = record {
+      _/\_ = \(x , y) (x' , y') -> (x /\ x') , (y /\ y') ;
+      _\/_ = \(x , y) (x' , y') -> (x \/ x') , (y \/ y') ;
+      ltop = ltopA , ltopB ;
+      lbot = lbotA , lbotB }
+    where
+      open Lattice latA renaming (_/\_ to _/\A_; _\/_ to _\/B_; ltop to ltopA; lbot to lbotA)
+      open Lattice latB renaming (_/\_ to _/\B_; _\/_ to _\/B_; ltop to ltopB; lbot to lbotB)
 
   --contLattice : {{cont : Container C}} -> Lattice (C A)
   --contLattice = {!!}
@@ -175,12 +182,12 @@ record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
 open MonadTrans {{...}} public
 
 record StateT S (M : Set -> Set) A : Set where
+  constructor StateTC
   field
     runStateT : S -> M (A -x- S)
 
 state : {{mon : Monad M}} -> (S -> (B -x- S)) -> StateT S M B
-state {{mon = mon}} f = record { runStateT = return o f }
-  where open Monad mon
+state f = record { runStateT = return o f }
 
 modifyS : {{mon : Monad M}} -> (S -> S) -> StateT S M T
 modifyS f = state (\ s -> (top , f s))
@@ -193,11 +200,18 @@ putS s = state $ const $ (top , s)
 
 instance
 
+  functor-stateT : Functor (StateT S M)
+  functor-stateT = {!!}
+
+  applicative-stateT : {{mon : Monad M}} -> Applicative (StateT S M)
+  applicative-stateT = record {
+      pure = \ a -> StateTC \ s -> pure (a , s) ;
+      _<*>_ = \ mf ma -> StateTC \ s -> {!return {!!}!}
+    }
+
   monad-stateT : {{mon : Monad M}} -> Monad (StateT S M)
-  monad-stateT {{mon = mon}} = record {
-    appl = {!   !} ;
+  monad-stateT = record {
     _>>=_ = \ m fm -> record{runStateT = \ s -> (StateT.runStateT m s >>= \ (a , s') -> StateT.runStateT (fm a) s') } }
-    where open Monad mon
 
   StateTMonadTrans : MonadTrans (StateT S)
   StateTMonadTrans = {!!}
@@ -206,19 +220,26 @@ instance
 
 
 
-LatVarMonad=>TrackLatVarMonad : {{cont : Container C}} -> {{lat : Lattice (AsmCont C V)}} -> LatVarMonad M V -> TrackLatVarMonad (StateT (AsmCont C V) M) V C
+LatVarMonad=>TrackLatVarMonad :
+  {{cont : Container C}} ->
+  {{lat : Lattice (AsmCont C V)}} ->
+  LatVarMonad M V ->
+  TrackLatVarMonad (StateT (AsmCont C V) M) V C
 LatVarMonad=>TrackLatVarMonad lvm = record {
   lvm = record {
-    mon = monT;
     new = liftT o new ;
-    get = \ {A = A} p -> liftT (get p) >>= (\ v -> modifyS (_/\ singleton (A , v , p)) >> return v)  ;
+    get = \ {A = A} p -> do
+      v <- liftT (get p)
+      modifyS (_/\ singleton (A , v , p))
+      return v
+    ;
     modify = \ p f -> liftT (modify p f) };
   getCurrAssignments = getS
   }
   where
-    monT = monad-stateT
-    open LatVarMonad lvm hiding (return; _>>=_; _>>_)
-    open Monad monT
+    --monT = monad-stateT
+    open LatVarMonad lvm
+    --open Monad monT
 
 ProdPtr : (V : Set -> Set) -> (B : Set) -> (A : Set) -> Set
 ProdPtr V B A = V (A -x- B)
