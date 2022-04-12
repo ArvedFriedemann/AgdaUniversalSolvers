@@ -124,9 +124,6 @@ record LatCont (C : Set -> Set) : Set where
   field
     {{cont}} : Container C
     {{lat}} : {A} -> Lattice (C A)
-  instance
-    latInst : {A} -> Lattice (C A)
-    latInst = lat
 
 
 AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
@@ -206,7 +203,7 @@ instance
   applicative-stateT : {{mon : Monad M}} -> Applicative (StateT S M)
   applicative-stateT = record {
       pure = \ a -> StateTC \ s -> pure (a , s) ;
-      _<*>_ = \ mf ma -> StateTC \ s -> {!return {!!}!}
+      _<*>_ = \ mf ma -> StateTC \ s -> {!!}
     }
 
   monad-stateT : {{mon : Monad M}} -> Monad (StateT S M)
@@ -225,12 +222,12 @@ LatVarMonad=>TrackLatVarMonad :
   {{lat : Lattice (AsmCont C V)}} ->
   LatVarMonad M V ->
   TrackLatVarMonad (StateT (AsmCont C V) M) V C
-LatVarMonad=>TrackLatVarMonad lvm = record {
+LatVarMonad=>TrackLatVarMonad {C} lvm = record {
   lvm = record {
     new = liftT o new ;
     get = \ {A = A} p -> do
       v <- liftT (get p)
-      modifyS (_/\ singleton (A , v , p))
+      modifyS (_/\ singleton {C = C} (A , v , p))
       return v
     ;
     modify = \ p f -> liftT (modify p f) };
