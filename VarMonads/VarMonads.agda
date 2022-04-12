@@ -66,7 +66,7 @@ record LatVarMonad M (V : Set -> Set) : Set where
 
     overlap {{mon}} : Monad M
   --open Monad mon public
-    --Properties:
+    --Properties:.
     {-
     --value of a variable only every increases exactly by values given through modify
     modprop : (p : V A) -> do
@@ -175,7 +175,7 @@ record TrackLatVarMonad M V C : Set where
 
 record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
   field
-    liftT : M A -> T M A
+    liftT : {{Monad M}} -> M A -> T M A
 open MonadTrans {{...}} public
 
 record StateT S (M : Set -> Set) A : Set where
@@ -197,13 +197,16 @@ putS s = state $ const $ (top , s)
 
 instance
 
-  functor-stateT : Functor (StateT S M)
-  functor-stateT = {!!}
+  functor-stateT : {{Functor M}} -> Functor (StateT S M)
+  functor-stateT = record { _<$>_ = \ f m -> StateTC $ ((\(a , s) -> (f a) , s ) <$>_) o StateT.runStateT m }
 
   applicative-stateT : {{mon : Monad M}} -> Applicative (StateT S M)
   applicative-stateT = record {
       pure = \ a -> StateTC \ s -> pure (a , s) ;
-      _<*>_ = \ mf ma -> StateTC \ s -> {!!}
+      _<*>_ = \ mf ma -> StateTC \ s -> do
+        (f , s') <- StateT.runStateT mf s
+        (a , s'') <- StateT.runStateT ma s'
+        return (f a , s'')
     }
 
   monad-stateT : {{mon : Monad M}} -> Monad (StateT S M)
@@ -211,7 +214,7 @@ instance
     _>>=_ = \ m fm -> record{runStateT = \ s -> (StateT.runStateT m s >>= \ (a , s') -> StateT.runStateT (fm a) s') } }
 
   StateTMonadTrans : MonadTrans (StateT S)
-  StateTMonadTrans = {!!}
+  StateTMonadTrans = record { liftT = \ m -> StateTC $ \ x -> (\ a -> a , x) <$> m }
 
 
 
@@ -277,12 +280,18 @@ record FixF (F : (Set -> Set) -> Set -> Set) (A : Set) : Set where
 RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
 RecPtr V F = FixF (\ V' A -> V (F V' A) )
 
+{-
+--does not seem to work...maybe because the coinductive record does not evaluate far enough or something
 testRefVarMonad : LatVarMonad M V -> {{cont : LatCont C}} -> LatVarMonad M (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') )))
-testRefVarMonad {V = V} {C = C} lvm = record {
-    new = (FixFC <$>_) o new o ( _, empty ) ;
+testRefVarMonad {M} {V = V} {C = C} lvm = record {
+    new = new'' ;
     get = ((fst <$>_) o get) o FixF.InF ;
     modify = (\ p f -> modify p \ (x , lst) -> ((fst $ f x) , lst) , (snd $ f x)) o FixF.InF }
-  where open LatVarMonad lvm
+  where
+    open LatVarMonad lvm
+    new'' : {{lat : Lattice A}} -> A -> M $ (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') ))) A
+    new'' {A} x = FixFC <$> new {A = A -x- C (Sigma Set (RecPtr V (\ V' A -> (A -x- C (Sigma Set V') ))))} (x , empty)
+-}
 
 RecTupPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
 RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
@@ -337,7 +346,7 @@ LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
       --TODO: this currently does not store which part of the lattice the reason caused...
     getReasons = getR }
   where
-    tpl = reasProductVarMonad {C = C} {{lat = latFkt}} lvm
+    tpl = reasProductVarMonad {C = C} {F = AsmCont C} {{lat = latFkt}} lvm
     lvm' = fst $ tpl
     reaslvm = snd $ tpl
     traclvm = LatVarMonad=>TrackLatVarMonad lvm'
