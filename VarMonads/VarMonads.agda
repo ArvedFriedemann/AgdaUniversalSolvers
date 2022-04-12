@@ -195,6 +195,12 @@ getS = state \ x -> x , x
 putS : {{mon : Monad M}} -> S -> StateT S M T
 putS s = state $ const $ (top , s)
 
+data Identity A : Set where
+  IdentC : A -> Identity A
+
+runIdentity : Identity A -> A
+runIdentity (IdentC x) = x
+
 instance
 
   functor-stateT : {{Functor M}} -> Functor (StateT S M)
@@ -215,6 +221,15 @@ instance
 
   StateTMonadTrans : MonadTrans (StateT S)
   StateTMonadTrans = record { liftT = \ m -> StateTC $ \ x -> (\ a -> a , x) <$> m }
+
+  functor-Identity : Functor Identity
+  functor-Identity = record { _<$>_ = \ f i -> {!   !} }
+
+  applicative-Identity : Applicative Identity
+  applicative-Identity = record { pure = IdentC ; _<*>_ = \ if i -> IdentC ((runIdentity if) (runIdentity i)) }
+
+  monad-Identity : Monad Identity
+  monad-Identity = record { _>>=_ = \ i fi -> fi (runIdentity i) }
 
 
 
@@ -355,6 +370,9 @@ LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
     open SpecLatVarMonad liftReaslvm renaming (get to getR; modify to modifyR; put to putR)
 
 
+-------------------------------------------------
+-- Default VarMonad
+-------------------------------------------------
 
 
 
