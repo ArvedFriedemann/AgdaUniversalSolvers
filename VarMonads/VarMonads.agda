@@ -400,10 +400,11 @@ defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
     new = \ {A} x -> state \ (n , mp) -> (ptr n x) , (suc n , insert n (A , x) mp) ;
     get = \ { {A} p -> state \ (n , mp) -> safeLookup p mp , (n , mp) } ;
-    modify = \ {(ptr p _) f -> state \ (n , mp) -> {!!}}
+    modify = \ {A} p f -> state \ (n , mp) -> let
+      oldCont = safeLookup p mp
+      (v , res) = f oldCont
+      in res , (n , insert (idx p) (A , v) mp)
   }
-
-
 
 
 test : Nat
