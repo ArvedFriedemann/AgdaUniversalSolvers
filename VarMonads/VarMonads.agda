@@ -376,42 +376,46 @@ LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
 open import Data.Nat.Properties renaming (<-strictTotalOrder to NatSTO)
 open import Data.Tree.AVL.Map NatSTO renaming (empty to empty-map)
 
+
+record NatPtr (A : Set) : Set where
+  constructor ptr
+  field
+    idx : Nat
+    alibi : A
+
+open NatPtr
+
 defaultState : Set
 defaultState = Nat -x- Map (Sigma Set id)
 
-data NatPtr (A : Set) : Set where
-  ptr : Nat -> NatPtr A
+postulate ptr-ret : {A : Set} -> (p : NatPtr A) -> (mp : Map (Sigma Set id)) -> (B : Set) -> (ex : exists b st (lookup (idx p) mp === just (B , b)) ) -> B === A
 
-data Coercible (A : Set) (B : Set) : Set where
-  TrustMe : Coercible A B
+safeLookup : NatPtr A -> Map (Sigma Set id) -> A
+safeLookup {A} (ptr p a) mp with lookup p mp in eq
+safeLookup {A} (ptr p a) mp | just (B , b) with ptr-ret {A} (ptr p a) mp B (b , eq)
+safeLookup {A} (ptr p a) mp | just (B , b) | refl = b
+safeLookup {A} (ptr p a) mp | nothing = a
 
-{-# FOREIGN GHC data AgdaCoercible l1 l2 a b = TrustMe #-}
-{-# COMPILE GHC Coercible = data AgdaCoercible (TrustMe) #-}
+maybe : Maybe A -> A -> A
+maybe (just x) _ = x
+maybe nothing x = x
 
--- Once we get our hands on a proof that `Coercible A B` we postulate that it
--- is safe to convert an `A` into a `B`. This is done under the hood by using
--- `unsafeCoerce`.
-
-postulate coerce : {{_ : Coercible A B}} → A → B
-
-{-# FOREIGN GHC import Unsafe.Coerce #-}
-{-# COMPILE GHC coerce = \ _ _ _ _ _ -> unsafeCoerce #-}
-
-instance
-  coerceAny : Coercible A B
-  coerceAny = TrustMe
+test2 : Nat
+test2 = safeLookup (ptr 1 5) mp  --snd $ maybe (lookup 1 mp) def
+  where
+    mp : Map (Sigma Set id)
+    mp = insert 1 (Nat , 5) empty-map
+    def : Sigma Set id
+    def = (Nat , 10)
 
 defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
-    new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
-    get = \ { {A} (ptr p) -> state \ (n , mp) -> unsafeLookupForceType A p mp , (n , mp) } ;
-    modify = \ {(ptr p) f -> state \ (n , mp) -> {!!}} 
+    new = \ {A} x -> state \ (n , mp) -> (ptr n x) , (suc n , insert n (A , x) mp) ;
+    get = \ { {A} p -> state \ (n , mp) -> safeLookup p mp , (n , mp) } ;
+    modify = \ {(ptr p _) f -> state \ (n , mp) -> {!!}}
   }
-  where
-    unsafeLookupForceType : (A : Set) -> Nat -> Map (Sigma Set id) -> A
-    unsafeLookupForceType A p mp with lookup p mp
-    unsafeLookupForceType A p mp | just (T , x') = coerce x'
-    unsafeLookupForceType A p mp | nothing = coerce 1 --will crash!
+
+
 
 
 test : Nat
