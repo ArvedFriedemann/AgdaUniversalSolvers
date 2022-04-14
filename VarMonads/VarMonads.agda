@@ -374,7 +374,7 @@ LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
 -- Default VarMonad
 -------------------------------------------------
 open import Data.Nat.Properties renaming (<-strictTotalOrder to NatSTO)
-open import Data.Tree.AVL.Map NatSTO
+open import Data.Tree.AVL.Map NatSTO renaming (empty to empty-map)
 
 defaultState : Set
 defaultState = Nat -x- Map (Sigma Set id)
@@ -382,11 +382,43 @@ defaultState = Nat -x- Map (Sigma Set id)
 data NatPtr (A : Set) : Set where
   ptr : Nat -> NatPtr A
 
+data Coercible (A : Set) (B : Set) : Set where
+  TrustMe : Coercible A B
+
+{-# FOREIGN GHC data AgdaCoercible l1 l2 a b = TrustMe #-}
+{-# COMPILE GHC Coercible = data AgdaCoercible (TrustMe) #-}
+
+-- Once we get our hands on a proof that `Coercible A B` we postulate that it
+-- is safe to convert an `A` into a `B`. This is done under the hood by using
+-- `unsafeCoerce`.
+
+postulate coerce : {{_ : Coercible A B}} → A → B
+
+{-# FOREIGN GHC import Unsafe.Coerce #-}
+{-# COMPILE GHC coerce = \ _ _ _ _ _ -> unsafeCoerce #-}
+
+instance
+  coerceAny : Coercible A B
+  coerceAny = TrustMe
+
 defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
-  new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
-  get = {!   !} ;
-  modify = {!   !} }
+    new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
+    get = \ { {A} (ptr p) -> state \ (n , mp) -> unsafeLookupForceType A p mp , (n , mp) } ;
+    modify = \ {(ptr p) f -> state \ (n , mp) -> {!!}} 
+  }
+  where
+    unsafeLookupForceType : (A : Set) -> Nat -> Map (Sigma Set id) -> A
+    unsafeLookupForceType A p mp with lookup p mp
+    unsafeLookupForceType A p mp | just (T , x') = coerce x'
+    unsafeLookupForceType A p mp | nothing = coerce 1 --will crash!
+
+
+test : Nat
+test = fst $ runIdentity $ StateT.runStateT act (0 , empty-map)
+  where
+    open VarMonad defaultVarMonad
+    act = (_* 10) <$> (new 10 >>= get)
 
 {-
 data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
