@@ -388,25 +388,13 @@ open NatPtr
 defaultState : Set
 defaultState = Nat -x- Map (Sigma Set id)
 
-postulate ptr-ret : {A : Set} -> (p : NatPtr A) -> (mp : Map (Sigma Set id)) -> (B : Set) -> (ex : exists b st (lookup (idx p) mp === just (B , b)) ) -> B === A
+open import Agda.Builtin.TrustMe
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
 safeLookup {A} (ptr p a) mp with lookup p mp in eq
-safeLookup {A} (ptr p a) mp | just (B , b) with ptr-ret {A} (ptr p a) mp B (b , eq)
+safeLookup {A} (ptr p a) mp | just (B , b) with primTrustMe {x = A} {y = B}
 safeLookup {A} (ptr p a) mp | just (B , b) | refl = b
 safeLookup {A} (ptr p a) mp | nothing = a
-
-maybe : Maybe A -> A -> A
-maybe (just x) _ = x
-maybe nothing x = x
-
-test2 : Nat
-test2 = safeLookup (ptr 1 5) mp  --snd $ maybe (lookup 1 mp) def
-  where
-    mp : Map (Sigma Set id)
-    mp = insert 1 (Nat , 5) empty-map
-    def : Sigma Set id
-    def = (Nat , 10)
 
 defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
