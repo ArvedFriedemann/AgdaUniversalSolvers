@@ -373,32 +373,20 @@ LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
 -------------------------------------------------
 -- Default VarMonad
 -------------------------------------------------
+open import Data.Nat.Properties renaming (<-strictTotalOrder to NatSTO)
+open import Data.Tree.AVL.Map NatSTO
 
-data IntMap (B : Set) : Set where
-  emptyMap : IntMap B
-  node : Nat -> B -> IntMap B
-  split : Nat -> IntMap B -> IntMap B -> IntMap B
-
-
-get : Nat -> IntMap B -> Maybe B
-get a emptyMap = nothing
-get a (node a' b) = ifDec a == a' then just b else nothing
-get a (split a' ma mb) = {!!}
-
-getDef : Nat -> B -> IntMap B -> B
-getDef a b m with get a m
-getDef a b m | just x = x
-getDef a b m | nothing = b
-
-insert : Nat -> B -> IntMap B -> IntMap B
-insert x b m = {!!}
+defaultState : Set
+defaultState = Nat -x- Map (Sigma Set id)
 
 data NatPtr (A : Set) : Set where
   ptr : Nat -> NatPtr A
 
-defaultState : Set
-defaultState = Nat -x- IntMap (Sigma Set id)
-
+defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
+defaultVarMonad = record {
+  new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
+  get = {!   !} ;
+  modify = {!   !} }
 
 {-
 data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
