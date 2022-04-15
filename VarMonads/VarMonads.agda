@@ -1,10 +1,13 @@
 {-# OPTIONS --type-in-type #-}
 -- {-# OPTIONS --overlapping-instances #-}
 {-# OPTIONS --guardedness #-}
+{-# OPTIONS --rewriting #-}
 
 module VarMonads.VarMonads where
 
 open import AgdaAsciiPrelude.AsciiPrelude
+
+open import Debug.Trace
 
 private
   variable
@@ -333,7 +336,7 @@ recProductVarMonad lvm = (record {
       modify = (\ p f -> modify p \ (x , lst) -> ((fst $ f x) , lst) , (snd $ f x)) o FixF.InF }) ,
     (record {
       get = ((snd <$>_) o get) o FixF.InF ;
-      modify = (\ p f -> modify p \ (x , lst) -> (x , (fst $ f $ lst)) , (snd $ f $ lst)) o FixF.InF })
+      modify = (\ p f -> modify p \ (x , lst) -> (ltop , (fst $ f $ lst)) , (snd $ f $ lst)) o FixF.InF })
   where open LatVarMonad lvm
 
 reasProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
@@ -426,7 +429,7 @@ instance
     singleton = \ x -> [ x ] }
 
   list-lattice : {A : Set} -> Lattice (List A)
-  list-lattice = record { --TODO: this doe snot make sense!
+  list-lattice = record { --TODO: this does not make sense!
     _/\_ = _++_ ;
     _\/_ = _++_ ;
     ltop = [] ;
@@ -455,7 +458,18 @@ test2 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
     cllvm = LatVarMonad=>CLLatVarMonad (VarMonad=>LatVarMonad defaultVarMonad)
     open CLLatVarMonad cllvm
     mond : StateT (AsmCont List (ReasPtr NatPtr List)) (StateT defaultState Identity) Nat
-    mond = new 10 >>= get
+    mond = new 1 >>= \ p -> put p 1 >> get p
+
+test3 : Nat
+test3 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
+  where
+    cllvm : TrackLatVarMonad
+      (StateT (AsmCont List NatPtr) (StateT defaultState Identity))
+      NatPtr List
+    cllvm = LatVarMonad=>TrackLatVarMonad (VarMonad=>LatVarMonad defaultVarMonad)
+    open TrackLatVarMonad cllvm
+    --mond : StateT (AsmCont List (ReasPtr NatPtr List)) (StateT defaultState Identity) Nat
+    mond = new 1 >>= \ p -> put p 1 >> get p
 
 {-
 data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
