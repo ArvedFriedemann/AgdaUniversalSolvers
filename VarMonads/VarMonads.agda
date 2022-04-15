@@ -38,6 +38,7 @@ record Monad M : Set where
   return : A -> M A
   return = pure
 
+  infixl 1 _>>_
   _>>_ : M A -> M B -> M B
   _>>_ m1 m2 = m1 >>= const m2
 
@@ -405,12 +406,13 @@ defaultInit : defaultState
 defaultInit = (0 , empty-map)
 
 open import Agda.Builtin.TrustMe
+postulate dummy : {A : Set} -> A
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
 safeLookup {A} (ptr p a) mp with lookup p mp in eq
 safeLookup {A} (ptr p a) mp | just (B , b) with primTrustMe {x = A} {y = B}
 safeLookup {A} (ptr p a) mp | just (B , b) | refl = b
-safeLookup {A} (ptr p a) mp | nothing = a
+safeLookup {A} (ptr p a) mp | nothing = dummy
 
 defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
@@ -448,7 +450,7 @@ test = fst $ runIdentity $ StateT.runStateT act (0 , empty-map)
     open VarMonad defaultVarMonad
     act = (_* 10) <$> (new 10 >>= \p -> modify' p (_+ 3) >> get p)
 
-test2 : Nat
+--test2 : Nat
 test2 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
   where
     cllvm : CLLatVarMonad
@@ -457,19 +459,14 @@ test2 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
       List
     cllvm = LatVarMonad=>CLLatVarMonad (VarMonad=>LatVarMonad defaultVarMonad)
     open CLLatVarMonad cllvm
-    mond : StateT (AsmCont List (ReasPtr NatPtr List)) (StateT defaultState Identity) Nat
-    mond = new 1 >>= \ p -> put p 1 >> get p
-
-test3 : Nat
-test3 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
-  where
-    cllvm : TrackLatVarMonad
-      (StateT (AsmCont List NatPtr) (StateT defaultState Identity))
-      NatPtr List
-    cllvm = LatVarMonad=>TrackLatVarMonad (VarMonad=>LatVarMonad defaultVarMonad)
-    open TrackLatVarMonad cllvm
     --mond : StateT (AsmCont List (ReasPtr NatPtr List)) (StateT defaultState Identity) Nat
-    mond = new 1 >>= \ p -> put p 1 >> get p
+    mond = do
+      p1 <- new 5
+      p2 <- new 7
+      vp <- get p1
+      put p1 2
+      getReasons p1
+
 
 {-
 data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
