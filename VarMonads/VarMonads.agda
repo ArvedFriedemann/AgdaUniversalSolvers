@@ -17,6 +17,7 @@ record Functor (F : Set -> Set) : Set  where
 open Functor {{...}}
 
 record Applicative F : Set where
+  infixl 4 _<*>_
   field
     pure : A -> F A
     _<*>_ : F (A -> B) -> F A -> F B
@@ -25,6 +26,7 @@ record Applicative F : Set where
 open Applicative {{...}}
 
 record Monad M : Set where
+  infixl 1 _>>=_
   field
     overlap {{appl}} : Applicative M
     _>>=_ : M A -> (A -> M B) -> M B
@@ -55,7 +57,11 @@ record VarMonad M (V : Set -> Set) : Set where
 
     overlap {{mon}} : Monad M
   --open Monad mon public
+  modify' : V A -> (A -> A) -> M T
+  modify' p f = modify p \ v -> f v , top
 
+  put : V A -> A -> M T
+  put p v = modify' p (const $ v)
 
 
 record LatVarMonad M (V : Set -> Set) : Set where
@@ -411,7 +417,7 @@ test : Nat
 test = fst $ runIdentity $ StateT.runStateT act (0 , empty-map)
   where
     open VarMonad defaultVarMonad
-    act = (_* 10) <$> (new 10 >>= get)
+    act = (_* 10) <$> (new 10 >>= \p -> modify' p (_+ 3) >> get p)
 
 {-
 data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
