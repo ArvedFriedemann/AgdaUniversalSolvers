@@ -395,7 +395,6 @@ record NatPtr (A : Set) : Set where
   constructor ptr
   field
     idx : Nat
-    alibi : A
 
 open NatPtr
 
@@ -409,14 +408,14 @@ open import Agda.Builtin.TrustMe
 postulate dummy : {A : Set} -> A
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
-safeLookup {A} (ptr p a) mp with lookup p mp in eq
-safeLookup {A} (ptr p a) mp | just (B , b) with primTrustMe {x = A} {y = B}
-safeLookup {A} (ptr p a) mp | just (B , b) | refl = b
-safeLookup {A} (ptr p a) mp | nothing = dummy
+safeLookup {A} (ptr p) mp with lookup p mp in eq
+safeLookup {A} (ptr p) mp | just (B , b) with primTrustMe {x = A} {y = B}
+safeLookup {A} (ptr p) mp | just (B , b) | refl = b
+safeLookup {A} (ptr p) mp | nothing = dummy
 
 defaultVarMonad : VarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
-    new = \ {A} x -> state \ (n , mp) -> (ptr n x) , (suc n , insert n (A , x) mp) ;
+    new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
     get = \ { {A} p -> state \ (n , mp) -> safeLookup p mp , (n , mp) } ;
     modify = \ {A} p f -> state \ (n , mp) -> let
       oldCont = safeLookup p mp
