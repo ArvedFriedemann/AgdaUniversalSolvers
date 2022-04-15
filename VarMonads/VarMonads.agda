@@ -463,7 +463,10 @@ test2 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
       p1 <- new 5
       p2 <- new 7
       vp <- get p1
+      vp' <- get p2
       put p1 2
+      vp'' <- get p1
+      put p1 1
       getReasons p1
 
 
