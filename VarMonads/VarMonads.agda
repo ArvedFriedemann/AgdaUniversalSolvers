@@ -352,11 +352,12 @@ reasProductVarMonad lvm = recProductVarMonad lvm
 --The weird naming is necessary due to a but in my current agda version.
 LatVarMonad=>CLLatVarMonad :
   {{cont : Container C}} ->
-  {{ latFkt : {A : Set} -> Lattice (C A) }} ->
-  -- {{lat : Lattice (AsmCont C (ReasPtr V C))}} ->
+  -- {{ latFkt : {A : Set} -> Lattice (C A) }} ->
+  {{lat : Lattice (AsmCont C (ReasPtr V C))}} ->
+  {{latC : Lattice (C $ AsmCont C (ReasPtr V C))}} ->
   LatVarMonad M V ->
   CLLatVarMonad (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C) C --TODO: pointer type here changes. Problem with fixpoint
-LatVarMonad=>CLLatVarMonad {C} {M} {V = V} {{ latFkt = latFkt }} lvm = record {
+LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} lvm = record {
     lvm = record {
       new = \x -> do
         p <- new x
@@ -370,7 +371,7 @@ LatVarMonad=>CLLatVarMonad {C} {M} {V = V} {{ latFkt = latFkt }} lvm = record {
       --TODO: this currently does not store which part of the lattice the reason caused...
     getReasons = getR }
   where
-    tpl = reasProductVarMonad {C = C} {F = AsmCont C} {{lat = latFkt}} lvm
+    tpl = reasProductVarMonad {C = C} {F = AsmCont C} lvm
     lvm' = fst $ tpl
     reaslvm = snd $ tpl
     traclvm = LatVarMonad=>TrackLatVarMonad lvm'
@@ -424,7 +425,7 @@ instance
     empty = [] ;
     singleton = \ x -> [ x ] }
 
-  list-lattice : {A} -> Lattice (List A)
+  list-lattice : {A : Set} -> Lattice (List A)
   list-lattice = record { --TODO: this doe snot make sense!
     _/\_ = _++_ ;
     _\/_ = _++_ ;
@@ -447,8 +448,13 @@ test = fst $ runIdentity $ StateT.runStateT act (0 , empty-map)
 test2 : Nat
 test2 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
   where
-    cllvm = LatVarMonad=>CLLatVarMonad {{ latFkt = list-lattice}} (VarMonad=>LatVarMonad defaultVarMonad)
+    cllvm : CLLatVarMonad
+      (StateT (AsmCont List (ReasPtr NatPtr List)) (StateT defaultState Identity))
+      (ReasPtr NatPtr List)
+      List
+    cllvm = LatVarMonad=>CLLatVarMonad (VarMonad=>LatVarMonad defaultVarMonad)
     open CLLatVarMonad cllvm
+    mond : StateT (AsmCont List (ReasPtr NatPtr List)) (StateT defaultState Identity) Nat
     mond = new 10 >>= get
 
 {-
