@@ -201,6 +201,9 @@ getS = state \ x -> x , x
 putS : {{mon : Monad M}} -> S -> StateT S M T
 putS s = state $ const $ (top , s)
 
+evalStateT : {{mon : Monad M}} -> StateT S M B -> S -> M B
+evalStateT st s = fst <$> StateT.runStateT st s
+
 data Identity A : Set where
   IdentC : A -> Identity A
 
@@ -349,11 +352,11 @@ reasProductVarMonad lvm = recProductVarMonad lvm
 --The weird naming is necessary due to a but in my current agda version.
 LatVarMonad=>CLLatVarMonad :
   {{cont : Container C}} ->
-  ({A : Set} -> Lattice (C A)) ->
-  {{lat : Lattice (AsmCont C (ReasPtr V C))}} ->
+  {{ latFkt : {A : Set} -> Lattice (C A) }} ->
+  -- {{lat : Lattice (AsmCont C (ReasPtr V C))}} ->
   LatVarMonad M V ->
   CLLatVarMonad (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C) C --TODO: pointer type here changes. Problem with fixpoint
-LatVarMonad=>CLLatVarMonad {C} {V = V} {M = M} latFkt lvm = record {
+LatVarMonad=>CLLatVarMonad {C} {M} {V = V} {{ latFkt = latFkt }} lvm = record {
     lvm = record {
       new = \x -> do
         p <- new x
@@ -394,6 +397,9 @@ open NatPtr
 defaultState : Set
 defaultState = Nat -x- Map (Sigma Set id)
 
+defaultInit : defaultState
+defaultInit = (0 , empty-map)
+
 open import Agda.Builtin.TrustMe
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
@@ -412,12 +418,38 @@ defaultVarMonad = record {
       in res , (n , insert (idx p) (A , v) mp)
   }
 
+instance
+  list-container : Container List
+  list-container = record {
+    empty = [] ;
+    singleton = \ x -> [ x ] }
+
+  list-lattice : {A} -> Lattice (List A)
+  list-lattice = record { --TODO: this doe snot make sense!
+    _/\_ = _++_ ;
+    _\/_ = _++_ ;
+    ltop = [] ;
+    lbot = [] }
+
+  nat-lattice : Lattice Nat
+  nat-lattice = record { --TODO: does not make sense!
+    _/\_ = _+_ ;
+    _\/_ = _+_ ;
+    ltop = 0 ;
+    lbot = 0 }
 
 test : Nat
 test = fst $ runIdentity $ StateT.runStateT act (0 , empty-map)
   where
     open VarMonad defaultVarMonad
     act = (_* 10) <$> (new 10 >>= \p -> modify' p (_+ 3) >> get p)
+
+test2 : Nat
+test2 = runIdentity $ flip evalStateT defaultInit $ flip evalStateT [] mond
+  where
+    cllvm = LatVarMonad=>CLLatVarMonad {{ latFkt = list-lattice}} (VarMonad=>LatVarMonad defaultVarMonad)
+    open CLLatVarMonad cllvm
+    mond = new 10 >>= get
 
 {-
 data _:+:_ (F : Set -> Set) (G : Set -> Set) (A : Set) : Set where
