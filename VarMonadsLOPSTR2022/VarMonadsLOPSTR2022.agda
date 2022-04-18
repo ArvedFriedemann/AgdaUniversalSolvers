@@ -7,15 +7,42 @@ module VarMonadsLOPSTR2022.VarMonadsLOPSTR2022 where
 
 open import AgdaAsciiPrelude.AsciiPrelude
 
-open import Category.Monad renaming (RawMonad to Monad)
---open import Category.Monad.State
+open import Category.Functor renaming (RawFunctor to Functor)
+open import Category.Applicative renaming (RawApplicative to Applicative)
+open import Category.Monad renaming (RawMonad to Monad; RawMonadPlus to MonadPlus)
+open import Category.Monad.State renaming (RawMonadState to MonadState)
 
-open Monad {{...}}
+open Functor {{...}} --renaming (_<$>_ to fmap)
+open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
+open Monad {{...}} hiding (_<$>_;_⊛_)
+open MonadPlus {{...}} hiding (_<$>_;_⊛_) renaming (∅ to mzero)
+open MonadState {{...}} hiding (_<$>_;return;_>>=_) renaming (get to getS; put to putS; modify to modifyS)
 
 private
   variable
-    A B : Set
-    C M F V : Set -> Set
+    A B S : Set
+    K C M F V : Set -> Set
+
+record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
+  field
+    liftT : {{mon : Monad M}} -> M A -> T M A
+    overlap {{mon'}} : {{mon : Monad M}} -> Monad (T M)
+
+instance
+  monadApplicative : {{mon : Monad M}} -> Applicative M
+  monadApplicative {{mon = mon}} = Monad.rawIApplicative mon
+
+  applicativeFunctor : {{apl : Applicative F}} -> Functor F
+  applicativeFunctor {{apl = apl}} = Applicative.rawFunctor apl
+
+  stateTMonad : {{mon : Monad M}} -> Monad (StateT S M)
+  stateTMonad {S = S} {{mon = mon}} = StateTMonad S mon
+
+  stateTMonadState : {{mon : Monad M}} -> MonadState S (StateT S M)
+  stateTMonadState {S = S} {{mon = mon}} = StateTMonadState S mon
+
+  stateTMonadTrans : MonadTrans (StateT S)
+  stateTMonadTrans = record { liftT = \ ma s -> (_, s) <$> ma }
 
 {-
 Basic VarMonad modelling Haskell pointers. Problem: Not useful for solvers due to complete rewriting of variables.
@@ -25,15 +52,7 @@ record BaseVarMonad (M : Set -> Set) (V : Set -> Set) : Set where
     new : A -> M (V A)
     get : V A -> M A
     write : V A -> A -> M T
-
-{-
-This VarMonad uses continuation style variable reading. This works well with lattice structures or MVars
--}
-record ContVarMonad (M : Set -> Set) (V : Set -> Set) : Set where
-  field
-    new : M (V A)
-    get : V A -> (A -> M T) -> M T
-    write : V A -> A -> M T --This cannot rewrite values,
+    overlap {{mon}} : Monad M
 
 {-
 The Continuation style VarMonad makes the most sense with clause learning, because
@@ -41,26 +60,44 @@ with get, the value can really only be used in the concealed context, not in the
 -}
 
 {-
-A VarMonad with constraints (like eq or lattice) to the values.
--}
-record ConstrContVarMonad (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
-  field
-    new : {{C A}} -> A -> M (V A)
-    get : {{C A}} -> V A -> (A -> M T) -> M T
-    write : {{C A}} -> V A -> A -> M T
-
-{-
 whole thing works with normal VarMonads too, if the monad is Alternative. Here, the continuation is harder to achieve.
 -}
-record ConstrDefVarMonad (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
+record ConstrDefVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
   field
-    new : {{C A}} -> M (V A)
-    get : {{C A}} -> V A -> M A
-    write : {{C A}} -> V A -> A -> M T
+    new : {{K A}} -> M (V A)
+    get : {{K A}} -> V A -> M A
+    write : {{K A}} -> V A -> A -> M T
+    overlap {{mon}} : Monad M
 
+AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
+AsmCont C V = C $ Sigma Set (\A -> (A -x- V A))
+
+record ConstrTrackVarMonad (K : Set -> Set) (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
+  field
+    cdvm : ConstrDefVarMonad K M V
+    getCurrAssignments : M $ AsmCont C V
+  open ConstrDefVarMonad cdvm public
+
+{-}
+ConstrDefVarMonad=>ConstrTrackVarMonad : {{MonadPlus C}} ->
+  ConstrDefVarMonad K M V ->
+  ConstrTrackVarMonad K C (StateT (AsmCont C V) M) V
+ConstrDefVarMonad=>ConstrTrackVarMonad cdvm = record {
+  cdvm = record {
+    new = {!   !} ;
+    get = {!   !} ;
+    write = {!   !} } ;
+  getCurrAssignments = getS }
+  where open ConstrDefVarMonad cdvm
+-}
+
+
+{-
+This VarMonad is needed later when the whole construction is actually done in parallel
+-}
 record RunnableVarMonad (M : Set -> Set) (V : Set -> Set) : Set where
   field
-    run : M A -> A or (Sigma Set \ B -> V B -x- (B -> M A))
+    run : M A -> A or (exists B st V B -x- (B -> M A))
 
 ----------------------------------------------------------------------
 -- Default memory
@@ -96,11 +133,3 @@ safeLookup {A} (ptr p) mp | nothing = dummy
 --------------------------------------------------------------------
 --Continuation style monad
 --------------------------------------------------------------------
-{-
-data FreeVarMonad (V : Set -> Set) : Set -> Set where
-  new : FreeVarMonad V (V A)
-  get : V A -> FreeVarMonad V A
-  write : V A -> A -> FreeVarMonad V T
-  return : FreeVarMonad V A
-  bind : FreeVarMonad V A -> (A -> FreeVarMonad V B) -> FreeVarMonad V B
--}
