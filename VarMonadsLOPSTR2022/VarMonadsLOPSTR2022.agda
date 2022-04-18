@@ -102,6 +102,35 @@ ConstrDefVarMonad=>ConstrTrackVarMonad {C = C} cdvm = record {
     open ConstrDefVarMonad cdvm
 
 
+{-# NO_POSITIVITY_CHECK #-}
+record FixF (F : (Set -> Set) -> Set -> Set) (A : Set) : Set where
+  constructor FixFC
+  coinductive
+  field
+    InF : F (FixF F) A
+
+RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
+RecPtr V F = FixF (\ V' A -> V (F V' A) )
+
+RecTupPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
+RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
+
+ReasPtr : (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
+ReasPtr V C = RecTupPtr V (\ V' -> C $ AsmCont C V')
+
+
+{-
+recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
+  {{mp : MonadPlus (F (RecTupPtr V F))}} ->
+  ConstrDefVarMonad K M V ->
+  ConstrDefVarMonad K M (RecTupPtr V F) -x- SpecLatVarMonad M (RecTupPtr V F) (F (RecTupPtr V F))
+recProductVarMonad lvm = {!!}
+-}
+
+
+
+
+
 record ConstrCLVarMonad (K : Set -> Set) (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
   field
     cdvm : ConstrDefVarMonad K M V
