@@ -62,7 +62,7 @@ record VarMonad M (V : Set -> Set) : Set where
     overlap {{mon}} : Monad M
   --open Monad mon public
   modify' : V A -> (A -> A) -> M T
-  modify' p f = modify p \ v -> f v , top
+  modify' p f = modify p \ v -> f v , tt
 
   put : V A -> A -> M T
   put p v = modify' p (const $ v)
@@ -93,7 +93,7 @@ record LatVarMonad M (V : Set -> Set) : Set where
   new' = new ltop
 
   modify' : {{lat : Lattice A}} -> V A -> (A -> A) -> M T
-  modify' p f = modify p (\ x -> (f x , top) )
+  modify' p f = modify p (\ x -> (f x , tt) )
 
   put : {{lat : Lattice A}} -> V A -> A -> M T
   put p v = modify' p (const v)
@@ -109,7 +109,7 @@ record SpecLatVarMonad (M : Set -> Set) (V : Set -> Set) B : Set where
     overlap {{mon}} : Monad M
 
   modify' : {{Lattice A}} -> V A -> (B -> B) -> M T
-  modify' p f = modify p (\ x -> (f x , top))
+  modify' p f = modify p (\ x -> (f x , tt))
 
   put : {{Lattice A}} -> V A -> B -> M T
   put p v = modify' p (const v)
@@ -197,13 +197,13 @@ state : {{mon : Monad M}} -> (S -> (B -x- S)) -> StateT S M B
 state f = record { runStateT = return o f }
 
 modifyS : {{mon : Monad M}} -> (S -> S) -> StateT S M T
-modifyS f = state (\ s -> (top , f s))
+modifyS f = state (\ s -> (tt , f s))
 
 getS : {{mon : Monad M}} -> StateT S M S
 getS = state \ x -> x , x
 
 putS : {{mon : Monad M}} -> S -> StateT S M T
-putS s = state $ const $ (top , s)
+putS s = state $ const $ (tt , s)
 
 evalStateT : {{mon : Monad M}} -> StateT S M B -> S -> M B
 evalStateT st s = fst <$> StateT.runStateT st s
