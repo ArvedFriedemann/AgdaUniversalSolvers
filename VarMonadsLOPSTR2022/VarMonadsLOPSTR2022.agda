@@ -102,6 +102,12 @@ ConstrDefVarMonad=>ConstrTrackVarMonad {C = C} cdvm = record {
     open ConstrDefVarMonad cdvm
 
 
+record ConstrCLVarMonad (K : Set -> Set) (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
+  field
+    cdvm : ConstrDefVarMonad K M V
+    getReason : M (C $ AsmCont C V)
+
+
 
 {-
 This VarMonad is needed later when the whole construction is actually done in parallel
