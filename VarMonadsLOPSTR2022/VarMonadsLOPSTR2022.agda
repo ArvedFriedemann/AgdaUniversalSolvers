@@ -15,8 +15,8 @@ open import Category.Monad.State renaming (RawMonadState to MonadState)
 open Functor {{...}} --renaming (_<$>_ to fmap)
 open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
 open Monad {{...}} hiding (_<$>_;_⊛_)
-open MonadPlus {{...}} hiding (_<$>_;_⊛_) renaming (∅ to mzero)
-open MonadState {{...}} hiding (_<$>_;return;_>>=_) renaming (get to getS; put to putS; modify to modifyS)
+open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_) renaming (∅ to mzero)
+open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_) renaming (get to getS; put to putS; modify to modifyS)
 
 private
   variable
@@ -27,6 +27,8 @@ record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
   field
     liftT : {{mon : Monad M}} -> M A -> T M A
     overlap {{mon'}} : {{mon : Monad M}} -> Monad (T M)
+
+open MonadTrans {{...}}
 
 instance
   monadApplicative : {{mon : Monad M}} -> Applicative M
@@ -64,10 +66,11 @@ whole thing works with normal VarMonads too, if the monad is Alternative. Here, 
 -}
 record ConstrDefVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
   field
-    new : {{K A}} -> M (V A)
-    get : {{K A}} -> V A -> M A
-    write : {{K A}} -> V A -> A -> M T
+    new : {{k : K A}} -> M (V A)
+    get : {{k : K A}} -> V A -> M A
+    write : {{k : K A}} -> V A -> A -> M T
     overlap {{mon}} : Monad M
+  --open Monad mon public
 
 AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
 AsmCont C V = C $ Sigma Set (\A -> (A -x- V A))
@@ -78,18 +81,26 @@ record ConstrTrackVarMonad (K : Set -> Set) (C : Set -> Set) (M : Set -> Set) (V
     getCurrAssignments : M $ AsmCont C V
   open ConstrDefVarMonad cdvm public
 
-{-}
-ConstrDefVarMonad=>ConstrTrackVarMonad : {{MonadPlus C}} ->
+open import Agda.Builtin.Equality.Rewrite
+
+id-rew : {C : Set -> Set} -> (\ x -> C x) === C
+id-rew = refl
+
+--{-# REWRITE id-rew #-}
+
+ConstrDefVarMonad=>ConstrTrackVarMonad : {{mpc : MonadPlus C}} ->
   ConstrDefVarMonad K M V ->
   ConstrTrackVarMonad K C (StateT (AsmCont C V) M) V
-ConstrDefVarMonad=>ConstrTrackVarMonad cdvm = record {
-  cdvm = record {
-    new = {!   !} ;
-    get = {!   !} ;
-    write = {!   !} } ;
-  getCurrAssignments = getS }
-  where open ConstrDefVarMonad cdvm
--}
+ConstrDefVarMonad=>ConstrTrackVarMonad {C = C} cdvm = record {
+    cdvm = record {
+      new = liftT new ;
+      get = \ p -> liftT (get p) >>= \ v -> {!  !} ;
+      write = \ p -> liftT o write p } ;
+    getCurrAssignments = getS }
+  where
+    open ConstrDefVarMonad cdvm
+    --open Monad (ConstrDefVarMonad.mon cdvm) renaming (_>>=_ to _>>=p_)
+
 
 
 {-
