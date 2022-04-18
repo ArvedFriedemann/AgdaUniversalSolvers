@@ -1,5 +1,5 @@
 {-# OPTIONS --type-in-type #-}
--- {-# OPTIONS --overlapping-instances #-}
+{-# OPTIONS --overlapping-instances #-}
 {-# OPTIONS --guardedness #-}
 {-# OPTIONS --rewriting #-}
 
@@ -15,8 +15,8 @@ open import Category.Monad.State renaming (RawMonadState to MonadState)
 open Functor {{...}} --renaming (_<$>_ to fmap)
 open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
 open Monad {{...}} hiding (_<$>_;_⊛_)
-open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_) renaming (∅ to mzero)
-open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_) renaming (get to getS; put to putS; modify to modifyS)
+open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_) renaming (∅ to mzero;_∣_ to _<|>_)
+open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_) renaming (get to getS; put to putS; modify to modifyS)
 
 private
   variable
@@ -26,7 +26,7 @@ private
 record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
   field
     liftT : {{mon : Monad M}} -> M A -> T M A
-    overlap {{mon'}} : {{mon : Monad M}} -> Monad (T M)
+    --overlap {{mon'}} : {{mon : Monad M}} -> Monad (T M)
 
 open MonadTrans {{...}}
 
@@ -45,6 +45,9 @@ instance
 
   stateTMonadTrans : MonadTrans (StateT S)
   stateTMonadTrans = record { liftT = \ ma s -> (_, s) <$> ma }
+
+  monadPlusMonad : {{mp : MonadPlus M}} -> Monad M
+  monadPlusMonad {{mp = mp}} = MonadPlus.monad mp
 
 {-
 Basic VarMonad modelling Haskell pointers. Problem: Not useful for solvers due to complete rewriting of variables.
@@ -81,12 +84,6 @@ record ConstrTrackVarMonad (K : Set -> Set) (C : Set -> Set) (M : Set -> Set) (V
     getCurrAssignments : M $ AsmCont C V
   open ConstrDefVarMonad cdvm public
 
-open import Agda.Builtin.Equality.Rewrite
-
-id-rew : {C : Set -> Set} -> (\ x -> C x) === C
-id-rew = refl
-
---{-# REWRITE id-rew #-}
 
 ConstrDefVarMonad=>ConstrTrackVarMonad : {{mpc : MonadPlus C}} ->
   ConstrDefVarMonad K M V ->
@@ -94,12 +91,15 @@ ConstrDefVarMonad=>ConstrTrackVarMonad : {{mpc : MonadPlus C}} ->
 ConstrDefVarMonad=>ConstrTrackVarMonad {C = C} cdvm = record {
     cdvm = record {
       new = liftT new ;
-      get = \ p -> liftT (get p) >>= \ v -> {!  !} ;
+      get = \ {A = A} p -> do
+        v <- liftT (get p)
+        modifyS (_<|> return (A , v , p))
+        return v
+        ;
       write = \ p -> liftT o write p } ;
     getCurrAssignments = getS }
   where
     open ConstrDefVarMonad cdvm
-    --open Monad (ConstrDefVarMonad.mon cdvm) renaming (_>>=_ to _>>=p_)
 
 
 
