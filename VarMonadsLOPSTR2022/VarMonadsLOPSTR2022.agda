@@ -118,14 +118,28 @@ RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
 ReasPtr : (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
 ReasPtr V C = RecTupPtr V (\ V' -> C $ AsmCont C V')
 
+record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
+  field
+    get : {{k : K A}} -> V A -> M B
+    write : {{k : K A}} -> V A -> B -> M T
+    overlap {{mon}} : Monad M
 
-{-
 recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
-  {{mp : MonadPlus (F (RecTupPtr V F))}} ->
+  (empty : (F (RecTupPtr V F))) ->
   ConstrDefVarMonad K M V ->
-  ConstrDefVarMonad K M (RecTupPtr V F) -x- SpecLatVarMonad M (RecTupPtr V F) (F (RecTupPtr V F))
-recProductVarMonad lvm = {!!}
--}
+  ConstrDefVarMonad K M (RecTupPtr V F) -x- ConstrSpecVarMonad K M (RecTupPtr V F) (F (RecTupPtr V F))
+recProductVarMonad emptyf cdvm = (
+  record {
+    new = {!   !} ;
+    get = {!   !} ;
+    write = {!   !} }
+  ) , (
+  record {
+    get = {!   !} ;
+    write = {!   !} }
+  )
+  where open ConstrDefVarMonad cdvm
+
 
 
 
