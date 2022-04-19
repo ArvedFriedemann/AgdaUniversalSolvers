@@ -75,6 +75,14 @@ record ConstrDefVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Se
     overlap {{mon}} : Monad M
   --open Monad mon public
 
+record ConstrVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
+  field
+    new : {{k : K A}} -> A -> M (V A)
+    get : {{k : K A}} -> V A -> M A
+    write : {{k : K A}} -> V A -> A -> M T
+    overlap {{mon}} : Monad M
+  --open Monad mon public
+
 AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
 AsmCont C V = C $ Sigma Set (\A -> (A -x- V A))
 
@@ -126,19 +134,22 @@ record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B 
 
 recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
   (empty : (F (RecTupPtr V F))) ->
-  ConstrDefVarMonad K M V ->
-  ConstrDefVarMonad K M (RecTupPtr V F) -x- ConstrSpecVarMonad K M (RecTupPtr V F) (F (RecTupPtr V F))
-recProductVarMonad emptyf cdvm = (
+  (tupK : {A : Set} -> {{k : K A}} -> K (A -x- (F (RecTupPtr V F)) ) ) ->
+  (emptyA : {A : Set} -> {{k : K A}} -> A) ->
+  ConstrVarMonad K M V ->
+  ConstrVarMonad K M (RecTupPtr V F) -x- ConstrSpecVarMonad K M (RecTupPtr V F) (F (RecTupPtr V F))
+recProductVarMonad {K} {V = V} {F = F} emptyf tupK emptyA cdvm = (
   record {
-    new = {!   !} ;
-    get = {!   !} ;
-    write = {!   !} }
+    new = (FixFC <$>_) o new {{k = tupK}} o (_, emptyf) ;
+    get = ((fst <$>_) o get {{k = tupK}}) o FixF.InF ;
+    write = (\ p v -> write {{k = tupK}} p (v , emptyf)) o FixF.InF } --this only makes sense with lattices
   ) , (
   record {
-    get = {!   !} ;
-    write = {!   !} }
+    get = ((snd <$>_) o get {{k = tupK}}) o FixF.InF ;
+    write = (\ p v -> write {{k = tupK}} p (emptyA , v)) o FixF.InF }
   )
-  where open ConstrDefVarMonad cdvm
+  where
+    open ConstrVarMonad cdvm
 
 
 
