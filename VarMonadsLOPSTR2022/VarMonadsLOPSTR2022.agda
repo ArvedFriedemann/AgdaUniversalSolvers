@@ -133,7 +133,7 @@ record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B 
     overlap {{mon}} : Monad M
 
 recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
-  (emptyF : (F (RecTupPtr V F))) ->
+  (emptyF : {V' : Set -> Set} -> (F V')) ->
   (emptyA : {A : Set} -> {{k : K A}} -> A) ->
   (tupK : {A : Set} -> {{k : K A}} -> K (A -x- (F (RecTupPtr V F)) ) ) ->
   ConstrVarMonad K M V ->
@@ -152,16 +152,47 @@ recProductVarMonad {K} {V = V} {F = F} emptyF emptyA tupK cdvm = (
     open ConstrVarMonad cdvm
 
 
-
-
-
-
 record ConstrCLVarMonad (K : Set -> Set) (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
   field
     cdvm : ConstrDefVarMonad K M V
-    getReason : M (C $ AsmCont C V)
+    getReasons : {{k : K A}} -> V A -> M (C $ AsmCont C V)
 
 
+ConstrVarMonad=>ConstrCLVarMonad :
+  {{mpc : MonadPlus C}} ->
+  (emptyC : {V' : Set -> Set} -> (C $ AsmCont C V')) ->
+  (emptyA : {A : Set} -> {{k : K A}} -> A) ->
+  (tupK : {A : Set} -> {{k : K A}} -> {B : Set} -> K (A -x- B) ) ->
+  ConstrVarMonad K M V ->
+  ConstrCLVarMonad K C (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C)
+ConstrVarMonad=>ConstrCLVarMonad {C} {K} {M = M} {V} emptyC emptyA tupK cvm =
+  record {
+    cdvm = record {
+      new = do
+        p <- new
+        r <- getCurrAssignments
+        writeRes p (return r)
+        return p
+        ;
+      get = get ;
+      write = \ p v -> do
+        r <- getCurrAssignments
+        write p v
+        writeRes p (return r)
+    } ;
+    getReasons = getRes }
+  where
+    prod = recProductVarMonad emptyC emptyA tupK cvm
+    cdvm = fst prod
+    specvm : ConstrSpecVarMonad K M (ReasPtr V C) (C $ AsmCont C (ReasPtr V C))
+    specvm = snd prod
+    tdvm = ConstrDefVarMonad=>ConstrTrackVarMonad cdvm
+    liftspecvm : ConstrSpecVarMonad K (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C) (C $ AsmCont C (ReasPtr V C))
+    liftspecvm = let open ConstrSpecVarMonad specvm in record {
+      get = liftT o get ;
+      write = \ p v -> liftT $ write p v }
+    open ConstrTrackVarMonad tdvm
+    open ConstrSpecVarMonad liftspecvm renaming (get to getRes; write to writeRes)
 
 {-
 This VarMonad is needed later when the whole construction is actually done in parallel
