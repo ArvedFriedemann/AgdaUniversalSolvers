@@ -233,5 +233,54 @@ safeLookup {A} (ptr p) mp | nothing = dummy
 
 
 --------------------------------------------------------------------
---Continuation style monad
+--Initial example
 --------------------------------------------------------------------
+
+Algebra : (F : Set -> Set) -> (A : Set) -> Set
+Algebra F A = F A -> A
+
+Fix : (F : Set -> Set) -> Set
+Fix F = forall {A} -> Algebra F A -> A
+
+foldf : Algebra F A -> Fix F -> A
+foldf alg fa = fa alg
+
+data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
+  Inl : F A -> (F :+: G) A
+  Inr : G A -> (F :+: G) A
+
+data ListF (A : Set) : Set -> Set where
+  nil : ListF A B
+  lcons : A -> B -> ListF A B
+
+[-] : Fix (ListF A)
+[-] = \ alg -> alg nil
+
+infixr 1 _:-:_
+_:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
+_:-:_ a fa = \ alg -> alg (lcons a (foldf alg fa))
+
+anyFL : Fix (ListF Bool) -> Bool
+anyFL = foldf \ {
+  nil -> false;
+  (lcons x xs) -> x || xs}
+
+listTest : Bool
+listTest = anyFL $ false :-: true :-: false :-: [-]
+
+{-
+Problem of the paper: we don't know why the function returned true.
+Part of clause learning: Should return that anyFL (false :-: true :-: x) = true
+Sure, getting anyFL (x :-: true :-: y) would be better, but would not be an accurate statement that comes from evaluating the function (could be deduced, but in this very example it was important that the first value is false.)
+
+Can be thought bigger when looking at a function sudoku : Field -> Bool. If there is an error where the field is not set corretly, why was that the case?
+-}
+
+{-
+VarMonad Solution:
+-}
+
+varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
+varMonadSolution {{bvm = bvm}} = do
+    return false
+  where open BaseVarMonad bvm
