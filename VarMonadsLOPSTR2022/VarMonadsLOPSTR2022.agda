@@ -242,8 +242,8 @@ Algebra F A = F A -> A
 Fix : (F : Set -> Set) -> Set
 Fix F = forall {A} -> Algebra F A -> A
 
-foldf : Algebra F A -> Fix F -> A
-foldf alg fa = fa alg
+foldF : Algebra F A -> Fix F -> A
+foldF alg fa = fa alg
 
 data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
@@ -256,12 +256,19 @@ data ListF (A : Set) : Set -> Set where
 [-] : Fix (ListF A)
 [-] = \ alg -> alg nil
 
+[-]p : Fix (ListF A o V)
+[-]p = \ alg -> alg nil
+
 infixr 1 _:-:_
 _:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
-_:-:_ a fa = \ alg -> alg (lcons a (foldf alg fa))
+_:-:_ a fa = \ alg -> alg (lcons a (foldF alg fa))
+
+infixr 1 _:-:p_
+_:-:p_ : A -> (V $ Fix (ListF A o V)) -> Fix (ListF A o V)
+_:-:p_ a vfa = \ alg -> alg (lcons a {!!})
 
 anyFL : Fix (ListF Bool) -> Bool
-anyFL = foldf \ {
+anyFL = foldF \ {
   nil -> false;
   (lcons x xs) -> x || xs}
 
@@ -280,7 +287,18 @@ Can be thought bigger when looking at a function sudoku : Field -> Bool. If ther
 VarMonad Solution:
 -}
 
+RecFPtr : (V : Set -> Set) -> (F : Set -> Set) -> Set
+--RecFPtr V F = V (F (V $ RecFPtr V F))
+RecFPtr V F = Fix (F o V)
+
+listToVMPtr : {{bvm : BaseVarMonad M V}} -> Fix (ListF A) -> M (V $ Fix ((ListF A) o V) )
+listToVMPtr {{bvm = bvm}} = foldF \ {
+    nil -> new {!!};
+    (lcons x ms) -> new {!x :-: ?!} }
+  where open BaseVarMonad bvm
+
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
 varMonadSolution {{bvm = bvm}} = do
+
     return false
   where open BaseVarMonad bvm
