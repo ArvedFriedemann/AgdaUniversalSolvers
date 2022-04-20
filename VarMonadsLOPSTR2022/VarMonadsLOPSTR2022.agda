@@ -133,16 +133,16 @@ record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B 
     overlap {{mon}} : Monad M
 
 recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
-  (empty : (F (RecTupPtr V F))) ->
-  (tupK : {A : Set} -> {{k : K A}} -> K (A -x- (F (RecTupPtr V F)) ) ) ->
+  (emptyF : (F (RecTupPtr V F))) ->
   (emptyA : {A : Set} -> {{k : K A}} -> A) ->
+  (tupK : {A : Set} -> {{k : K A}} -> K (A -x- (F (RecTupPtr V F)) ) ) ->
   ConstrVarMonad K M V ->
-  ConstrVarMonad K M (RecTupPtr V F) -x- ConstrSpecVarMonad K M (RecTupPtr V F) (F (RecTupPtr V F))
-recProductVarMonad {K} {V = V} {F = F} emptyf tupK emptyA cdvm = (
+  ConstrDefVarMonad K M (RecTupPtr V F) -x- ConstrSpecVarMonad K M (RecTupPtr V F) (F (RecTupPtr V F))
+recProductVarMonad {K} {V = V} {F = F} emptyF emptyA tupK cdvm = (
   record {
-    new = (FixFC <$>_) o new {{k = tupK}} o (_, emptyf) ;
+    new = FixFC <$> new {{k = tupK}} (emptyA , emptyF) ;
     get = ((fst <$>_) o get {{k = tupK}}) o FixF.InF ;
-    write = (\ p v -> write {{k = tupK}} p (v , emptyf)) o FixF.InF } --this only makes sense with lattices
+    write = (\ p v -> write {{k = tupK}} p (v , emptyF)) o FixF.InF } --this only makes sense with lattices
   ) , (
   record {
     get = ((snd <$>_) o get {{k = tupK}}) o FixF.InF ;
