@@ -245,6 +245,15 @@ Fix F = forall {A} -> Algebra F A -> A
 foldF : Algebra F A -> Fix F -> A
 foldF alg fa = fa alg
 
+MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
+MAlgebra M F A = F A -> M A
+
+FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
+FixM M F = forall {A} -> MAlgebra M F A -> M A
+
+foldM : MAlgebra M F A -> FixM M F -> M A
+foldM alg fm = fm alg
+
 data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
   Inr : G A -> (F :+: G) A
@@ -256,7 +265,7 @@ data ListF (A : Set) : Set -> Set where
 [-] : Fix (ListF A)
 [-] = \ alg -> alg nil
 
-[-]p : Fix (ListF A o V)
+[-]p : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
 [-]p = \ alg -> alg nil
 
 infixr 1 _:-:_
@@ -264,8 +273,14 @@ _:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
 _:-:_ a fa = \ alg -> alg (lcons a (foldF alg fa))
 
 infixr 1 _:-:p_
-_:-:p_ : A -> (V $ Fix (ListF A o V)) -> Fix (ListF A o V)
-_:-:p_ a vfa = \ alg -> alg (lcons a {!!})
+_:-:p_ : {{bvm : BaseVarMonad M V}} ->
+  A -> (V $ FixM M (ListF A o V)) -> FixM M (ListF A o V)
+_:-:p_ {{bvm = bvm}} a vfa alg = get vfa >>= foldM alg >>= new >>= \ p -> alg (lcons a p)
+{-do
+    xs <- get vfa
+    v <- foldM alg xs
+    alg (lcons a v) -}
+  where open BaseVarMonad bvm
 
 anyFL : Fix (ListF Bool) -> Bool
 anyFL = foldF \ {
@@ -291,14 +306,9 @@ RecFPtr : (V : Set -> Set) -> (F : Set -> Set) -> Set
 --RecFPtr V F = V (F (V $ RecFPtr V F))
 RecFPtr V F = Fix (F o V)
 
-listToVMPtr : {{bvm : BaseVarMonad M V}} -> Fix (ListF A) -> M (V $ Fix ((ListF A) o V) )
-listToVMPtr {{bvm = bvm}} = foldF \ {
-    nil -> new {!!};
-    (lcons x ms) -> new {!x :-: ?!} }
-  where open BaseVarMonad bvm
-
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
 varMonadSolution {{bvm = bvm}} = do
-
+    nl <- new [-]p
+    c1 <- new $ true :-:p {!!}
     return false
   where open BaseVarMonad bvm
