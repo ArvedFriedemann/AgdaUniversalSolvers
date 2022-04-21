@@ -12,7 +12,7 @@ open import Category.Applicative renaming (RawApplicative to Applicative)
 open import Category.Monad renaming (RawMonad to Monad; RawMonadPlus to MonadPlus)
 open import Category.Monad.State renaming (RawMonadState to MonadState)
 open import Function.Identity.Categorical
-open import Function.Identity.Instances
+--open import Function.Identity.Instances
 
 
 open Functor {{...}} --renaming (_<$>_ to fmap)
@@ -238,16 +238,17 @@ safeLookup {A} (ptr p) mp | nothing = dummy
 ----------------------------------------------------------------------
 -- Default BaseVarMonad
 ----------------------------------------------------------------------
-
+{-}
 defaultVarMonad : BaseVarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
     new = \ {A} x -> {!!}; --\ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
     get = \ { {A} p -> {!!} }; --\ (n , mp) -> safeLookup p mp , (n , mp) } ;
-    write = {!!} {- \ {A} p f -> \ (n , mp) -> let
+    write = \ {A} p f -> {!!} \ (n , mp) -> let
       oldCont = safeLookup p mp
       (v , res) = f oldCont
-      in res , (n , insert (idx p) (A , v) mp) -}
+      in res , (n , insert (idx p) (A , v) mp) 
   }
+-}
 
 --------------------------------------------------------------------
 --Initial example
@@ -324,6 +325,8 @@ VarMonad Solution:
 RecFPtr : (V : Set -> Set) -> (F : Set -> Set) -> Set
 --RecFPtr V F = V (F (V $ RecFPtr V F))
 RecFPtr V F = Fix (F o V)
+
+
 
 newList : {{vm : BaseVarMonad M V}} -> Fix (ListF A) -> M $ V (FixM M $ ListF A o V)
 newList {{vm = vm}} = foldF \ {
