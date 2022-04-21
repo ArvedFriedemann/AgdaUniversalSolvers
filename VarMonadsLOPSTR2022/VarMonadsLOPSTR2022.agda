@@ -11,12 +11,15 @@ open import Category.Functor renaming (RawFunctor to Functor)
 open import Category.Applicative renaming (RawApplicative to Applicative)
 open import Category.Monad renaming (RawMonad to Monad; RawMonadPlus to MonadPlus)
 open import Category.Monad.State renaming (RawMonadState to MonadState)
+open import Function.Identity.Categorical
+open import Function.Identity.Instances
+
 
 open Functor {{...}} --renaming (_<$>_ to fmap)
 open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
-open Monad {{...}} hiding (_<$>_;_⊛_)
-open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_) renaming (∅ to mzero;_∣_ to _<|>_)
-open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_) renaming (get to getS; put to putS; modify to modifyS)
+open Monad {{...}} hiding (_<$>_;_⊛_;pure)
+open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_) renaming (∅ to mzero;_∣_ to _<|>_)
+open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_) renaming (get to getS; put to putS; modify to modifyS)
 
 private
   variable
@@ -232,6 +235,20 @@ safeLookup {A} (ptr p) mp | just (B , b) | refl = b
 safeLookup {A} (ptr p) mp | nothing = dummy
 
 
+----------------------------------------------------------------------
+-- Default BaseVarMonad
+----------------------------------------------------------------------
+
+defaultVarMonad : BaseVarMonad (StateT defaultState Identity) NatPtr
+defaultVarMonad = record {
+    new = \ {A} x -> {!!}; --\ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
+    get = \ { {A} p -> {!!} }; --\ (n , mp) -> safeLookup p mp , (n , mp) } ;
+    write = {!!} {- \ {A} p f -> \ (n , mp) -> let
+      oldCont = safeLookup p mp
+      (v , res) = f oldCont
+      in res , (n , insert (idx p) (A , v) mp) -}
+  }
+
 --------------------------------------------------------------------
 --Initial example
 --------------------------------------------------------------------
@@ -249,10 +266,10 @@ MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
 MAlgebra M F A = F A -> M A
 
 FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
-FixM M F = forall {A} -> MAlgebra M F A -> M A
+FixM M F = forall A -> MAlgebra M F A -> M A
 
 foldM : MAlgebra M F A -> FixM M F -> M A
-foldM alg fm = fm alg
+foldM {A = A} alg fm = fm A alg
 
 data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
@@ -265,8 +282,9 @@ data ListF (A : Set) : Set -> Set where
 [-] : Fix (ListF A)
 [-] = \ alg -> alg nil
 
-[-]p : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
-[-]p = \ alg -> alg nil
+[-]p : FixM M (ListF A o V)
+[-]p B alg = alg nil
+
 
 infixr 1 _:-:_
 _:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
@@ -275,12 +293,13 @@ _:-:_ a fa = \ alg -> alg (lcons a (foldF alg fa))
 infixr 1 _:-:p_
 _:-:p_ : {{bvm : BaseVarMonad M V}} ->
   A -> (V $ FixM M (ListF A o V)) -> FixM M (ListF A o V)
-_:-:p_ {{bvm = bvm}} a vfa alg = get vfa >>= foldM alg >>= new >>= \ p -> alg (lcons a p)
-{-do
-    xs <- get vfa
-    v <- foldM alg xs
-    alg (lcons a v) -}
+_:-:p_ {{bvm = bvm}} a vfa B alg =
+    get vfa
+    >>= foldM alg
+    >>= new
+    >>= \ p -> alg (lcons a p)
   where open BaseVarMonad bvm
+
 
 anyFL : Fix (ListF Bool) -> Bool
 anyFL = foldF \ {
@@ -306,9 +325,22 @@ RecFPtr : (V : Set -> Set) -> (F : Set -> Set) -> Set
 --RecFPtr V F = V (F (V $ RecFPtr V F))
 RecFPtr V F = Fix (F o V)
 
+newList : {{vm : BaseVarMonad M V}} -> Fix (ListF A) -> M $ V (FixM M $ ListF A o V)
+newList {{vm = vm}} = foldF \ {
+    nil -> new [-]p;
+    (lcons x xs) -> xs >>= new o (x :-:p_) }
+  where open BaseVarMonad vm
+
+anyFLM : {{bvm : BaseVarMonad M V}} -> FixM M (ListF Bool o V) -> M Bool
+anyFLM {{bvm = bvm}} = foldM \ {
+    nil -> return false;
+    (lcons x xs) -> (_||_) <$> return x <*> get xs } --(| pure x || get xs |) } --works just fine but takes ages to compile
+  where open BaseVarMonad bvm
+
+onPtr : {{bvm : BaseVarMonad M V}} -> (A -> M B) -> V A -> M B
+onPtr {{bvm = bvm}} m p = get p >>= m
+  where open BaseVarMonad bvm
+
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
-varMonadSolution {{bvm = bvm}} = do
-    nl <- new ([-]p {A = Bool})
-    c1 <- new $ true :-:p {!nl!}
-    return false
+varMonadSolution {{bvm = bvm}} = onPtr anyFLM =<< newList (false :-: true :-: false :-: [-])
   where open BaseVarMonad bvm
