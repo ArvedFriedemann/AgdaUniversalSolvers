@@ -11,7 +11,7 @@ open import Category.Functor renaming (RawFunctor to Functor)
 open import Category.Applicative renaming (RawApplicative to Applicative)
 open import Category.Monad renaming (RawMonad to Monad; RawMonadPlus to MonadPlus)
 open import Category.Monad.State renaming (RawMonadState to MonadState)
-open import Function.Identity.Categorical
+--open import Function.Identity.Categorical renaming (monad to monad-identity)
 --open import Function.Identity.Instances
 
 
@@ -33,6 +33,12 @@ record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
 
 open MonadTrans {{...}}
 
+data Identity A : Set where
+  IdentC : A -> Identity A
+
+runIdentity : Identity A -> A
+runIdentity (IdentC x) = x
+
 instance
   monadApplicative : {{mon : Monad M}} -> Applicative M
   monadApplicative {{mon = mon}} = Monad.rawIApplicative mon
@@ -51,6 +57,11 @@ instance
 
   monadPlusMonad : {{mp : MonadPlus M}} -> Monad M
   monadPlusMonad {{mp = mp}} = MonadPlus.monad mp
+
+  monadIdentity : Monad Identity
+  monadIdentity =  record {
+    return = IdentC ;
+    _>>=_ = \ i fi -> fi (runIdentity i) }
 
 {-
 Basic VarMonad modelling Haskell pointers. Problem: Not useful for solvers due to complete rewriting of variables.
@@ -238,7 +249,7 @@ safeLookup {A} (ptr p) mp | nothing = dummy
 ----------------------------------------------------------------------
 -- Default BaseVarMonad
 ----------------------------------------------------------------------
-{-}
+{-
 defaultVarMonad : BaseVarMonad (StateT defaultState Identity) NatPtr
 defaultVarMonad = record {
     new = \ {A} x -> {!!}; --\ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
@@ -246,7 +257,7 @@ defaultVarMonad = record {
     write = \ {A} p f -> {!!} \ (n , mp) -> let
       oldCont = safeLookup p mp
       (v , res) = f oldCont
-      in res , (n , insert (idx p) (A , v) mp) 
+      in res , (n , insert (idx p) (A , v) mp)
   }
 -}
 
@@ -344,6 +355,19 @@ onPtr : {{bvm : BaseVarMonad M V}} -> (A -> M B) -> V A -> M B
 onPtr {{bvm = bvm}} m p = get p >>= m
   where open BaseVarMonad bvm
 
+_=<<vm_ : {{bvm : BaseVarMonad M V}} -> (A -> M B) -> M (V A) -> M B
+_=<<vm_ {{bvm = bvm}} m p = p >>= get >>= m
+  where open BaseVarMonad bvm
+
+[]vm : {{bvm : BaseVarMonad M V}} -> M $ V $ FixM M (ListF A o V)
+[]vm {{bvm = bvm}} = new [-]p
+  where open BaseVarMonad bvm
+
+infixr 1 _::vm_
+_::vm_ : {{bvm : BaseVarMonad M V}} -> A -> (M $ V $ FixM M (ListF A o V)) -> M $ V $ FixM M (ListF A o V)
+_::vm_ {{ bvm = bvm }} a xs = {!   !}
+  where open BaseVarMonad bvm
+
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
-varMonadSolution {{bvm = bvm}} = onPtr anyFLM =<< newList (false :-: true :-: false :-: [-])
+varMonadSolution {{bvm = bvm}} = anyFLM =<<vm (false ::vm true ::vm false ::vm []vm)
   where open BaseVarMonad bvm
