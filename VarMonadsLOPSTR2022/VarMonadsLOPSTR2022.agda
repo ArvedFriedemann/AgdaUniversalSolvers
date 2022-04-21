@@ -308,7 +308,7 @@ RecFPtr V F = Fix (F o V)
 
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
 varMonadSolution {{bvm = bvm}} = do
-    nl <- new [-]p
-    c1 <- new $ true :-:p {!!}
+    nl <- new ([-]p {A = Bool})
+    c1 <- new $ true :-:p {!nl!}
     return false
   where open BaseVarMonad bvm
