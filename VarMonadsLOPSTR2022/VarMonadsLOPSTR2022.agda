@@ -18,8 +18,8 @@ open import Category.Monad.State renaming (RawMonadState to MonadState)
 open Functor {{...}} --renaming (_<$>_ to fmap)
 open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
 open Monad {{...}} hiding (_<$>_;_⊛_;pure)
-open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_) renaming (∅ to mzero;_∣_ to _<|>_)
-open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_) renaming (get to getS; put to putS; modify to modifyS)
+open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (∅ to mzero;_∣_ to _<|>_)
+open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (get to getS; put to putS; modify to modifyS)
 
 private
   variable
@@ -337,7 +337,11 @@ RecFPtr : (V : Set -> Set) -> (F : Set -> Set) -> Set
 --RecFPtr V F = V (F (V $ RecFPtr V F))
 RecFPtr V F = Fix (F o V)
 
-
+anyTest : {{bvm : BaseVarMonad M V}} -> Fix (ListF Bool o V) -> M Bool
+anyTest {{bvm = bvm}} = foldF \ {
+    nil -> return false;
+    (lcons x xs) -> (x ||_) <$> (join $ get xs)}
+  where open BaseVarMonad bvm
 
 newList : {{vm : BaseVarMonad M V}} -> Fix (ListF A) -> M $ V (FixM M $ ListF A o V)
 newList {{vm = vm}} = foldF \ {
@@ -365,7 +369,7 @@ _=<<vm_ {{bvm = bvm}} m p = p >>= get >>= m
 
 infixr 1 _::vm_
 _::vm_ : {{bvm : BaseVarMonad M V}} -> A -> (M $ V $ FixM M (ListF A o V)) -> M $ V $ FixM M (ListF A o V)
-_::vm_ {{ bvm = bvm }} a xs = {!   !}
+_::vm_ {{ bvm = bvm }} a xs = xs >>= new o (a :-:p_)
   where open BaseVarMonad bvm
 
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
