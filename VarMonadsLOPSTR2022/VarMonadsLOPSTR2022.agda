@@ -294,9 +294,6 @@ data ListF (A : Set) : (B : Set) -> Set where
 [-] : Fix (ListF A)
 [-] A alg = alg nil
 
-[-]p : FixM M (ListF A o V)
-[-]p A alg = alg nil
-
 infixr 1 _:-:_
 _:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
 _:-:_ a fa B alg = alg (lcons a (foldF alg fa))
@@ -337,24 +334,33 @@ _=<<vm_ : {{bvm : BaseVarMonad M V}} -> (A -> M B) -> M (V A) -> M B
 _=<<vm_ {{bvm = bvm}} m p = p >>= get >>= m
   where open BaseVarMonad bvm
 
+
+[-]p : FixM M (ListF A o V)
+[-]p A alg = alg nil
+
+infixr 1 _:-:p_
+_:-:p_ : {{bvm : BaseVarMonad M V}} -> A -> V ( FixM M (ListF A o V) ) -> M $ FixM M (ListF A o V)
+_:-:p_ {{bvm = bvm}} a p = return \ B alg -> do
+    xs <- get p
+    recres <- foldM alg xs >>= new
+    alg (lcons a recres)
+  where open BaseVarMonad bvm
+
 []vm : {{bvm : BaseVarMonad M V}} -> M $ V $ FixM M (ListF A o V)
 []vm {{bvm = bvm}} = new [-]p
   where open BaseVarMonad bvm
 
 infixr 1 _::vm_
-_::vm_ : {{bvm : BaseVarMonad M V}} -> A -> (M $ V $ FixM M (ListF A o V)) -> M $ V $ FixM M (ListF A o V)
+_::vm_ : {{bvm : BaseVarMonad M V}} -> A -> (M $ V ( FixM M (ListF A o V) )) -> M $ V ( FixM M (ListF A o V) )
 _::vm_ {{ bvm = bvm }} a mxs = do
     xs <- mxs
-    new \ B alg -> do
-      xs' <- get xs
-      recres <- foldM alg xs' >>= new
-      alg (lcons a recres)
+    (a :-:p xs) >>= new 
   where open BaseVarMonad bvm
 
 {-
 _::vm'_ : {{bvm : BaseVarMonad M V}} -> A -> V $ Fix (ListF A o V) -> M $ V $ Fix (ListF A o V)
 _::vm'_ {{bvm = bvm}} a p = do
-    new \ B alg -> alg (lcons a {!!}) --this doesn't work at this point. In order to properly fold over the value, one needs to create a pointer with the result. This can only be done in a monadic context. 
+    new \ B alg -> alg (lcons a {!!}) --this doesn't work at this point. In order to properly fold over the value, one needs to create a pointer with the result. This can only be done in a monadic context.
   where open BaseVarMonad bvm
 -}
 
