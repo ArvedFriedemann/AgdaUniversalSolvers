@@ -351,6 +351,13 @@ _::vm_ {{ bvm = bvm }} a mxs = do
       alg (lcons a recres)
   where open BaseVarMonad bvm
 
+{-
+_::vm'_ : {{bvm : BaseVarMonad M V}} -> A -> V $ Fix (ListF A o V) -> M $ V $ Fix (ListF A o V)
+_::vm'_ {{bvm = bvm}} a p = do
+    new \ B alg -> alg (lcons a {!!}) --this doesn't work at this point. In order to properly fold over the value, one needs to create a pointer with the result. This can only be done in a monadic context. 
+  where open BaseVarMonad bvm
+-}
+
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
 varMonadSolution {{bvm = bvm}} = anyFLM =<<vm (false ::vm true ::vm false ::vm []vm)
   where open BaseVarMonad bvm
