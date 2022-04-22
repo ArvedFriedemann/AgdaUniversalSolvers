@@ -287,7 +287,7 @@ data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
   Inr : G A -> (F :+: G) A
 
-data ListF (A : Set) : Set -> Set where
+data ListF (A : Set) : (B : Set) -> Set where
   nil : ListF A B
   lcons : A -> B -> ListF A B
 
