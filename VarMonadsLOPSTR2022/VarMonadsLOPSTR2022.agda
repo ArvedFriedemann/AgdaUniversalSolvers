@@ -269,10 +269,10 @@ Algebra : (F : Set -> Set) -> (A : Set) -> Set
 Algebra F A = F A -> A
 
 Fix : (F : Set -> Set) -> Set
-Fix F = forall {A} -> Algebra F A -> A
+Fix F = forall A -> Algebra F A -> A
 
 foldF : Algebra F A -> Fix F -> A
-foldF alg fa = fa alg
+foldF {A = A} alg fa = fa A alg
 
 MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
 MAlgebra M F A = F A -> M A
@@ -281,7 +281,7 @@ FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
 FixM M F = forall A -> MAlgebra M F A -> M A
 
 foldM : MAlgebra M F A -> FixM M F -> M A
-foldM {A = A} alg fm = fm A alg
+foldM {A = A} alg fa = fa A alg
 
 data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
@@ -292,26 +292,14 @@ data ListF (A : Set) : (B : Set) -> Set where
   lcons : A -> B -> ListF A B
 
 [-] : Fix (ListF A)
-[-] = \ alg -> alg nil
+[-] A alg = alg nil
 
 [-]p : FixM M (ListF A o V)
-[-]p B alg = alg nil
-
+[-]p A alg = alg nil
 
 infixr 1 _:-:_
 _:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
-_:-:_ a fa = \ alg -> alg (lcons a (foldF alg fa))
-
-infixr 1 _:-:p_
-_:-:p_ : {{bvm : BaseVarMonad M V}} ->
-  A -> (V $ FixM M (ListF A o V)) -> FixM M (ListF A o V)
-_:-:p_ {{bvm = bvm}} a vfa B alg =
-    get vfa
-    >>= foldM alg
-    >>= new
-    >>= \ p -> alg (lcons a p)
-  where open BaseVarMonad bvm
-
+_:-:_ a fa B alg = alg (lcons a (foldF alg fa))
 
 anyFL : Fix (ListF Bool) -> Bool
 anyFL = foldF \ {
@@ -333,30 +321,16 @@ Can be thought bigger when looking at a function sudoku : Field -> Bool. If ther
 VarMonad Solution:
 -}
 
-RecFPtr : (V : Set -> Set) -> (F : Set -> Set) -> Set
---RecFPtr V F = V (F (V $ RecFPtr V F))
-RecFPtr V F = Fix (F o V)
-
-anyTest : {{bvm : BaseVarMonad M V}} -> Fix (ListF Bool o V) -> M Bool
-anyTest {{bvm = bvm}} = foldF \ {
+anyNaive : {{bvm : BaseVarMonad M V}} -> Fix (ListF Bool o V) -> M Bool
+anyNaive {{bvm = bvm}} = foldF \ {
     nil -> return false;
     (lcons x xs) -> (x ||_) <$> (join $ get xs)}
   where open BaseVarMonad bvm
 
-newList : {{vm : BaseVarMonad M V}} -> Fix (ListF A) -> M $ V (FixM M $ ListF A o V)
-newList {{vm = vm}} = foldF \ {
-    nil -> new [-]p;
-    (lcons x xs) -> xs >>= new o (x :-:p_) }
-  where open BaseVarMonad vm
-
 anyFLM : {{bvm : BaseVarMonad M V}} -> FixM M (ListF Bool o V) -> M Bool
 anyFLM {{bvm = bvm}} = foldM \ {
     nil -> return false;
-    (lcons x xs) -> (_||_) <$> return x <*> get xs } --(| pure x || get xs |) } --works just fine but takes ages to compile
-  where open BaseVarMonad bvm
-
-onPtr : {{bvm : BaseVarMonad M V}} -> (A -> M B) -> V A -> M B
-onPtr {{bvm = bvm}} m p = get p >>= m
+    (lcons x xs) -> (x ||_) <$> get xs } --(| (return x) || (get xs) |) } --technically correct, but takes ages to compile
   where open BaseVarMonad bvm
 
 _=<<vm_ : {{bvm : BaseVarMonad M V}} -> (A -> M B) -> M (V A) -> M B
@@ -369,7 +343,12 @@ _=<<vm_ {{bvm = bvm}} m p = p >>= get >>= m
 
 infixr 1 _::vm_
 _::vm_ : {{bvm : BaseVarMonad M V}} -> A -> (M $ V $ FixM M (ListF A o V)) -> M $ V $ FixM M (ListF A o V)
-_::vm_ {{ bvm = bvm }} a xs = xs >>= new o (a :-:p_)
+_::vm_ {{ bvm = bvm }} a mxs = do
+    xs <- mxs
+    new \ B alg -> do
+      xs' <- get xs
+      recres <- foldM alg xs' >>= new
+      alg (lcons a recres)
   where open BaseVarMonad bvm
 
 varMonadSolution : {{bvm : BaseVarMonad M V}} -> M Bool
