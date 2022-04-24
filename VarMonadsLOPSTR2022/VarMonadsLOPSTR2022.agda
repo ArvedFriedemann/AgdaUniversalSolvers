@@ -283,6 +283,19 @@ FixM M F = forall A -> MAlgebra M F A -> M A
 foldM : MAlgebra M F A -> FixM M F -> M A
 foldM {A = A} alg fa = fa A alg
 
+MVAlgebra :
+  (M : Set -> Set) ->
+  (F : (Set -> Set) -> (Set -> Set)) ->
+  (V : Set -> Set) ->
+  (A : Set) -> Set
+MVAlgebra M F V = MAlgebra M (F V)
+
+FixMV : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> Set
+FixMV M F = forall V A -> MVAlgebra M F V A -> M A
+
+RecPtr' : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> Set
+RecPtr' M F = FixMV M F
+
 data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
   Inr : G A -> (F :+: G) A
@@ -354,7 +367,7 @@ infixr 1 _::vm_
 _::vm_ : {{bvm : BaseVarMonad M V}} -> A -> (M $ V ( FixM M (ListF A o V) )) -> M $ V ( FixM M (ListF A o V) )
 _::vm_ {{ bvm = bvm }} a mxs = do
     xs <- mxs
-    (a :-:p xs) >>= new 
+    (a :-:p xs) >>= new
   where open BaseVarMonad bvm
 
 {-
