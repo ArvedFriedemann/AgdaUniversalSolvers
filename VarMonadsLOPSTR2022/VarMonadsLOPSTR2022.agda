@@ -123,22 +123,47 @@ ConstrDefVarMonad=>ConstrTrackVarMonad {C = C} cdvm = record {
   where
     open ConstrDefVarMonad cdvm
 
+----------------------------------------------------------------
+--Algebrae
+----------------------------------------------------------------
 
-{-# NO_POSITIVITY_CHECK #-}
-record FixF (F : (Set -> Set) -> Set -> Set) (A : Set) : Set where
-  constructor FixFC
-  coinductive
-  field
-    InF : F (FixF F) A
+MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
+MAlgebra M F A = F A -> M A
 
-RecPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set) -> (A : Set) -> Set
-RecPtr V F = FixF (\ V' A -> V (F V' A) )
+FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
+FixM M F = forall A -> MAlgebra M F A -> M A
 
-RecTupPtr : (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
-RecTupPtr V F = RecPtr V (\ V' A -> A -x- F V')
+foldM : MAlgebra M F A -> FixM M F -> M A
+foldM {A = A} alg fa = fa A alg
 
-ReasPtr : (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
-ReasPtr V C = RecTupPtr V (\ V' -> C $ AsmCont C V')
+FMAlgebra :
+  (M : Set -> Set) ->
+  (F : (Set -> Set) -> (Set -> Set)) ->
+  (A : Set) -> Set
+FMAlgebra M F A = (V : Set -> Set) -> F V A -> M A
+
+FixFM : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (A : Set) -> Set
+FixFM M F A = forall A -> FMAlgebra M F A -> M A
+
+foldFM : {F : (Set -> Set) -> Set -> Set} ->
+  FMAlgebra M F A -> FixFM M F A -> M A
+foldFM {A = A} alg fa = fa A alg
+
+FixFMC : {F : (Set -> Set) -> Set -> Set} ->
+  ((A : Set) -> F (FixFM M F) A) -> (A : Set) -> FixFM M F A
+FixFMC {M} {F} f A A' alg = alg (FixFM M F) (f A')
+
+RecPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (A : Set) -> Set
+RecPtr M V F = FixFM M (\ V' A -> V (F V' A) )
+
+RecTupPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set -> Set
+RecTupPtr M V F = RecPtr M V (\ V' A -> A -x- F V')
+
+RTC : {F : (Set -> Set) -> Set} -> V (A -x- F (RecTupPtr M V F)) -> RecTupPtr M V F A
+RTC v = {!!}
+
+ReasPtr : (M : Set -> Set) -> (V : Set -> Set) -> (C : Set -> Set) -> Set -> Set
+ReasPtr M V C = RecTupPtr M V (\ V' -> C $ AsmCont C V')
 
 record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
   field
@@ -149,18 +174,18 @@ record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B 
 recProductVarMonad : {V : Set -> Set} -> {F : (Set -> Set) -> Set} ->
   (emptyF : {V' : Set -> Set} -> (F V')) ->
   (emptyA : {A : Set} -> {{k : K A}} -> A) ->
-  (tupK : {A : Set} -> {{k : K A}} -> K (A -x- (F (RecTupPtr V F)) ) ) ->
+  (tupK : {A : Set} -> {{k : K A}} -> K (A -x- (F (RecTupPtr M V F)) ) ) ->
   ConstrVarMonad K M V ->
-  ConstrDefVarMonad K M (RecTupPtr V F) -x- ConstrSpecVarMonad K M (RecTupPtr V F) (F (RecTupPtr V F))
+  ConstrDefVarMonad K M (RecTupPtr M V F) -x- ConstrSpecVarMonad K M (RecTupPtr M V F) (F (RecTupPtr M V F))
 recProductVarMonad {K} {V = V} {F = F} emptyF emptyA tupK cdvm = (
   record {
-    new = FixFC <$> new {{k = tupK}} (emptyA , emptyF) ;
-    get = ((fst <$>_) o get {{k = tupK}}) o FixF.InF ;
-    write = (\ p v -> write {{k = tupK}} p (v , emptyF)) o FixF.InF } --this only makes sense with lattices
+    new = {!!} <$> new {{k = tupK}} (emptyA , emptyF) ;
+    get = {!!}; --((fst <$>_) o get {{k = tupK}}) o FixF.InF ;
+    write = {!!} } --(\ p v -> write {{k = tupK}} p (v , emptyF)) o FixF.InF } --this only makes sense with lattices
   ) , (
   record {
-    get = ((snd <$>_) o get {{k = tupK}}) o FixF.InF ;
-    write = (\ p v -> write {{k = tupK}} p (emptyA , v)) o FixF.InF }
+    get = {!!}; --((snd <$>_) o get {{k = tupK}}) o FixF.InF ;
+    write = {!!} } --(\ p v -> write {{k = tupK}} p (emptyA , v)) o FixF.InF }
   )
   where
     open ConstrVarMonad cdvm
@@ -178,7 +203,7 @@ ConstrVarMonad=>ConstrCLVarMonad :
   (emptyA : {A : Set} -> {{k : K A}} -> A) ->
   (tupK : {A : Set} -> {{k : K A}} -> {B : Set} -> K (A -x- B) ) ->
   ConstrVarMonad K M V ->
-  ConstrCLVarMonad K C (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C)
+  ConstrCLVarMonad K C (StateT (AsmCont C (ReasPtr M V C)) M) (ReasPtr M V C)
 ConstrVarMonad=>ConstrCLVarMonad {C} {K} {M = M} {V} emptyC emptyA tupK cvm =
   record {
     cdvm = record {
@@ -198,10 +223,10 @@ ConstrVarMonad=>ConstrCLVarMonad {C} {K} {M = M} {V} emptyC emptyA tupK cvm =
   where
     prod = recProductVarMonad emptyC emptyA tupK cvm
     cdvm = fst prod
-    specvm : ConstrSpecVarMonad K M (ReasPtr V C) (C $ AsmCont C (ReasPtr V C))
+    specvm : ConstrSpecVarMonad K M (ReasPtr M V C) (C $ AsmCont C (ReasPtr M V C))
     specvm = snd prod
     tdvm = ConstrDefVarMonad=>ConstrTrackVarMonad cdvm
-    liftspecvm : ConstrSpecVarMonad K (StateT (AsmCont C (ReasPtr V C)) M) (ReasPtr V C) (C $ AsmCont C (ReasPtr V C))
+    liftspecvm : ConstrSpecVarMonad K (StateT (AsmCont C (ReasPtr M V C)) M) (ReasPtr M V C) (C $ AsmCont C (ReasPtr M V C))
     liftspecvm = let open ConstrSpecVarMonad specvm in record {
       get = liftT o get ;
       write = \ p v -> liftT $ write p v }
@@ -273,28 +298,6 @@ Fix F = forall A -> Algebra F A -> A
 
 foldF : Algebra F A -> Fix F -> A
 foldF {A = A} alg fa = fa A alg
-
-MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
-MAlgebra M F A = F A -> M A
-
-FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
-FixM M F = forall A -> MAlgebra M F A -> M A
-
-foldM : MAlgebra M F A -> FixM M F -> M A
-foldM {A = A} alg fa = fa A alg
-
-MVAlgebra :
-  (M : Set -> Set) ->
-  (F : (Set -> Set) -> (Set -> Set)) ->
-  (V : Set -> Set) ->
-  (A : Set) -> Set
-MVAlgebra M F V = MAlgebra M (F V)
-
-FixMV : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> Set
-FixMV M F = forall V A -> MVAlgebra M F V A -> M A
-
-RecPtr' : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> Set
-RecPtr' M F = FixMV M F
 
 data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
   Inl : F A -> (F :+: G) A
