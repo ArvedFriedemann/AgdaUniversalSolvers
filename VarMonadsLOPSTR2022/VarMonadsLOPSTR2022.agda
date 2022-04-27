@@ -136,22 +136,29 @@ FixM M F = forall A -> MAlgebra M F A -> M A
 foldM : MAlgebra M F A -> FixM M F -> M A
 foldM {A = A} alg fa = fa A alg
 
+--TODO: pointer type depends on the var Monad. Maybe some readout function or something should be given, but it's a bit much to expect this for work for all functors V.
+--Maybe use a base pointer thing, for which an algebra can be given, and say that the new pointer structure os another functor composed into it, like V o K or something. That way one can do this with a base pointer struture...
 FMAlgebra :
   (M : Set -> Set) ->
   (F : (Set -> Set) -> (Set -> Set)) ->
+  (V : Set -> Set) ->
   (A : Set) -> Set
-FMAlgebra M F A = (V : Set -> Set) -> F V A -> M A
+FMAlgebra M F V A = forall K -> F (V o K) A -> M A
+--maybe this works, because the concrete functor is given through the var Monad...
 
-FixFM : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (A : Set) -> Set
-FixFM M F A = forall A -> FMAlgebra M F A -> M A
+FixFM : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (V : Set -> Set) -> (A : Set) -> Set
+FixFM M F V A = forall A -> FMAlgebra M F V A -> M A
 
 foldFM : {F : (Set -> Set) -> Set -> Set} ->
-  FMAlgebra M F A -> FixFM M F A -> M A
-foldFM {A = A} alg fa = fa A alg
+  FMAlgebra M F V A -> FixFM M F V A -> M A
+foldFM {M} {A = A} {F} alg fa = fa A alg
 
+--Maybe give the VarMonad here...
 FixFMC : {F : (Set -> Set) -> Set -> Set} ->
-  ((A : Set) -> F (FixFM M F) A) -> (A : Set) -> FixFM M F A
-FixFMC {M} {F} f A A' alg = alg (FixFM M F) (f A')
+  F (FixFM M F V) A -> FixFM M F V A
+FixFMC fva A alg = alg {!   !} {!   !}
+
+{-}
 
 RecPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (A : Set) -> Set
 RecPtr M V F = FixFM M (\ V' A -> V (F V' A) )
@@ -232,6 +239,8 @@ ConstrVarMonad=>ConstrCLVarMonad {C} {K} {M = M} {V} emptyC emptyA tupK cvm =
       write = \ p v -> liftT $ write p v }
     open ConstrTrackVarMonad tdvm
     open ConstrSpecVarMonad liftspecvm renaming (get to getRes; write to writeRes)
+
+-}
 
 {-
 This VarMonad is needed later when the whole construction is actually done in parallel
