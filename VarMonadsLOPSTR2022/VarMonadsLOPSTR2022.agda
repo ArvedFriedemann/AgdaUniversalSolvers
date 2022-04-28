@@ -141,23 +141,46 @@ foldM {A = A} alg fa = fa A alg
 FMAlgebra :
   (M : Set -> Set) ->
   (F : (Set -> Set) -> (Set -> Set)) ->
-  (V : Set -> Set) ->
+  (V : Set -> Set)
   (A : Set) -> Set
-FMAlgebra M F V A = forall K -> F (V o K) A -> M A
+FMAlgebra M F V A = F V A -> M A
 --maybe this works, because the concrete functor is given through the var Monad...
 
+test : {{bvm : BaseVarMonad M V}} -> (A : Set) -> M $ V (FixM M (\ R -> Maybe $ A -x- V R))
+test {{bvm = bvm}} A = new \ B alg -> alg nothing
+  where open BaseVarMonad bvm
+
+testConstr : BaseVarMonad M V -> BaseVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) ))
+testConstr bvm = record {
+    new = \ x -> new \ B alg -> alg (x , []);
+    get = \ p -> get p >>= \ v -> foldM (return o fst) v ;
+    write = \ p v -> write p \ B alg -> alg (v , []) }
+  where open BaseVarMonad bvm
+
+{-}
 FixFM : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (V : Set -> Set) -> (A : Set) -> Set
-FixFM M F V A = forall A -> FMAlgebra M F V A -> M A
+FixFM M F V A =  -> M A
 
 foldFM : {F : (Set -> Set) -> Set -> Set} ->
-  FMAlgebra M F V A -> FixFM M F V A -> M A
-foldFM {M} {A = A} {F} alg fa = fa A alg
+  FMAlgebra M F A -> FixFM M F A -> M A
+foldFM {M} {A = A} {F} alg fa = fa alg
 
 --Maybe give the VarMonad here...
 FixFMC : {F : (Set -> Set) -> Set -> Set} ->
-  F (FixFM M F V) A -> FixFM M F V A
-FixFMC fva A alg = alg {!   !} {!   !}
+  (BaseVarMonad M (FixFM M F)) ->
+  F (FixFM M F) A -> FixFM M F A
+FixFMC {M} {A = A} {F} bvm fva alg = alg (FixFM M F) bvm fva
 
+FixVarMonad : (F : (Set -> Set) -> Set -> Set) ->
+  (forall {V'} {A} -> A -> F V' A)
+  -> BaseVarMonad M V -> BaseVarMonad M (FixFM M F)
+FixVarMonad {M} {V} F pure bvm = record {
+    new = (((\ p alg -> get p >>= alg (FixFM M F) {!!} {-(FixVarMonad F pure bvm)-}) <$>_) o new) o pure {V' = FixFM M F} ;
+    get = {!   !} ;
+    write = {!   !} }
+  where open BaseVarMonad bvm
+
+-}
 {-}
 
 RecPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (A : Set) -> Set
