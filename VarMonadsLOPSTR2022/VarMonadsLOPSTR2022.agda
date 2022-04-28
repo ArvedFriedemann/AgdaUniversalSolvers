@@ -136,51 +136,36 @@ FixM M F = forall A -> MAlgebra M F A -> M A
 foldM : MAlgebra M F A -> FixM M F -> M A
 foldM {A = A} alg fa = fa A alg
 
---TODO: pointer type depends on the var Monad. Maybe some readout function or something should be given, but it's a bit much to expect this for work for all functors V.
---Maybe use a base pointer thing, for which an algebra can be given, and say that the new pointer structure os another functor composed into it, like V o K or something. That way one can do this with a base pointer struture...
-FMAlgebra :
-  (M : Set -> Set) ->
-  (F : (Set -> Set) -> (Set -> Set)) ->
-  (V : Set -> Set)
-  (A : Set) -> Set
-FMAlgebra M F V A = F V A -> M A
---maybe this works, because the concrete functor is given through the var Monad...
+open import Data.Maybe using () renaming (map to mapMab)
+
+record SpecVarMonad (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
+  field
+    get : V A -> M B
+    write : V A -> B -> M T
+    overlap {{mon}} : Monad M
 
 test : {{bvm : BaseVarMonad M V}} -> (A : Set) -> M $ V (FixM M (\ R -> Maybe $ A -x- V R))
 test {{bvm = bvm}} A = new \ B alg -> alg nothing
   where open BaseVarMonad bvm
 
-testConstr : BaseVarMonad M V -> BaseVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) ))
-testConstr bvm = record {
-    new = \ x -> new \ B alg -> alg (x , []);
-    get = \ p -> get p >>= \ v -> foldM (return o fst) v ;
-    write = \ p v -> write p \ B alg -> alg (v , []) }
+sequence : {{mon : Monad M}} -> List (M A) -> M (List A)
+sequence = foldr (\ ma mlst -> (| ma :: mlst |)) (return [])
+
+testConstr : BaseVarMonad M V -> BaseVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) )) -x- SpecVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) )) (List (V $ FixM M (\ R -> A -x- List (V R) )))
+testConstr {M} {V = V} bvm = ( record {
+      new = \ x -> new \ B alg -> alg (x , []);
+      get = \ p -> get p >>= \v -> foldM (return o fst) v ;
+      write = \ p v -> write p \ B alg -> alg (v , []) }
+    ) , ( record {
+      get = \ p -> get p >>= \v -> foldM (\ {(_ , lst) -> sequence (map get lst) >>= \ llst -> return $ concat llst}) v ;
+      write = \ p v -> get p >>= \ pv -> write p \ B alg -> foldM return pv >>= \ {(a , lst) -> alg (a , p :: lst) } } )
   where open BaseVarMonad bvm
 
 {-}
-FixFM : (M : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (V : Set -> Set) -> (A : Set) -> Set
-FixFM M F V A =  -> M A
-
-foldFM : {F : (Set -> Set) -> Set -> Set} ->
-  FMAlgebra M F A -> FixFM M F A -> M A
-foldFM {M} {A = A} {F} alg fa = fa alg
-
---Maybe give the VarMonad here...
-FixFMC : {F : (Set -> Set) -> Set -> Set} ->
-  (BaseVarMonad M (FixFM M F)) ->
-  F (FixFM M F) A -> FixFM M F A
-FixFMC {M} {A = A} {F} bvm fva alg = alg (FixFM M F) bvm fva
-
-FixVarMonad : (F : (Set -> Set) -> Set -> Set) ->
-  (forall {V'} {A} -> A -> F V' A)
-  -> BaseVarMonad M V -> BaseVarMonad M (FixFM M F)
-FixVarMonad {M} {V} F pure bvm = record {
-    new = (((\ p alg -> get p >>= alg (FixFM M F) {!!} {-(FixVarMonad F pure bvm)-}) <$>_) o new) o pure {V' = FixFM M F} ;
-    get = {!   !} ;
-    write = {!   !} }
-  where open BaseVarMonad bvm
-
+RecPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> Set -> Set -> Set) -> (A : Set) -> Set
+RecPtr M V F A = V $ FixM M (\ R -> F V)
 -}
+
 {-}
 
 RecPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> (Set -> Set)) -> (A : Set) -> Set
