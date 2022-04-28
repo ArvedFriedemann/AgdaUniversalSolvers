@@ -3,7 +3,7 @@
 {-# OPTIONS --guardedness #-}
 {-# OPTIONS --rewriting #-}
 
-module VarMonadsLOPSTR2022.VarMonadsLOPSTR2022 where
+module VarMonadsMTC.VarMonadsMTC where
 
 open import AgdaAsciiPrelude.AsciiPrelude
 

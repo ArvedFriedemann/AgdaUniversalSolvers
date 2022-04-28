@@ -1,9 +1,9 @@
 {-# OPTIONS --rewriting --guardedness #-}
 {-# OPTIONS --type-in-type #-}
 
-module VarMonadsLOPSTR2022 where
+module VarMonadsMTC where
 
-open import VarMonads.VarMonads public
+open import VarMonadsMTC.VarMonadsMTC
 
 open import AgdaAsciiPrelude.AsciiPrelude
 
