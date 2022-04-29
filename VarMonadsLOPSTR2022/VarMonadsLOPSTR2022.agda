@@ -136,6 +136,7 @@ FixM M F = forall A -> MAlgebra M F A -> M A
 foldM : MAlgebra M F A -> FixM M F -> M A
 foldM {A = A} alg fa = fa A alg
 
+{-}
 open import Data.Maybe using () renaming (map to mapMab)
 
 record SpecVarMonad (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
@@ -257,6 +258,7 @@ record RunnableVarMonad (M : Set -> Set) (V : Set -> Set) : Set where
   field
     run : M A -> A or (exists B st V B -x- (B -> M A))
 
+-}
 ----------------------------------------------------------------------
 -- Default memory
 ----------------------------------------------------------------------
@@ -316,10 +318,6 @@ Fix F = forall A -> Algebra F A -> A
 foldF : Algebra F A -> Fix F -> A
 foldF {A = A} alg fa = fa A alg
 
-data _:+:_ (F : Set -> Set) (G : Set -> Set) : Set -> Set where
-  Inl : F A -> (F :+: G) A
-  Inr : G A -> (F :+: G) A
-
 data ListF (A : Set) : (B : Set) -> Set where
   nil : ListF A B
   lcons : A -> B -> ListF A B
@@ -338,6 +336,25 @@ anyFL = foldF \ {
 
 listTest : Bool
 listTest = anyFL $ false :-: true :-: false :-: [-]
+
+splitList : Fix (ListF A) -> Maybe (A -x- Fix (ListF A))
+splitList = foldF \ {
+  nil -> nothing;
+  (lcons x xs) -> just (x , maybe' (\ {(x , xs) -> x :-: xs}) [-] xs)}
+
+{-# TERMINATING #-}
+listZip : Fix (ListF A) -> Fix (ListF B) -> Fix (ListF (A -x- B))
+listZip fa fb with splitList fa | splitList fb
+...| just (x , xs) | just (y , ys) = (x , y) :-: listZip xs ys
+...| _ | _ = [-]
+
+listEq : (A -> A -> Bool) -> Fix (ListF A) -> Fix (ListF A) -> Bool
+listEq _=?=_ l1 l2 = foldF
+  (\ { nil -> true; (lcons (x , y) xs) -> x =?= y && xs})
+  (listZip l1 l2)
+
+testListEq : Bool
+testListEq = listEq (\ x y -> isYes (x == y) ) (1 :-: 2 :-: [-]) (1 :-: 2 :-: [-])
 
 {-
 Problem of the paper: we don't know why the function returned true.
