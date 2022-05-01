@@ -157,15 +157,15 @@ sequence = foldr (\ ma mlst -> (| ma :: mlst |)) (return [])
 RecTupLstPtr : (M : Set -> Set) (V : Set -> Set) (A : Set) -> Set
 RecTupLstPtr M V A = V (A -x- FixM M (\ R -> List (Sigma Set \ T -> V (T -x- R)) ) )
 
-testConstr : BaseVarMonad M V -> BaseVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) )) -x- SpecVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) )) (List (V $ FixM M (\ R -> A -x- List (V R) )))
+testConstr : BaseVarMonad M V -> BaseVarMonad M (RecTupLstPtr M V) -x- SpecVarMonad M (RecTupLstPtr M V) (FixM M \ R -> List (Sigma Set \ T -> V (T -x- R)) )
 testConstr {M} {V = V} bvm = ( record {
-      new = \ x -> new \ B alg -> alg (x , []);
-      get = \ p -> get p >>= foldM (return o fst);
-      write = \ p v -> write p \ B alg -> alg (v , []) }
+      new = \ x -> new (x , FixMC {!!} []);
+      get = \ p -> fst <$> get p ; --foldM (return o fst);
+      write = \ p v -> write p (v , FixMC {!!} []) }
     ) , ( record {
-      get = \p -> get p >>= foldM \ (_ , lst) -> concat <$> sequence (map get lst);
+      get = \ p -> snd <$> get p ; -- \p -> get p >>= foldM \ (_ , lst) -> concat <$> sequence (map get lst);
       -- TODO: This does not work because the pointer type A depends. List needs to store values independent of A!
-      write = \ p v -> get p >>= foldM (return o fst) >>= \ a -> write p (FixMC {!   !} (a , [])) } ) --\ p v -> get p >>= \ pv -> write p \ B alg -> foldM return pv >>= \ {(a , lst) -> alg (a , p :: lst) } } )
+      write = \ p v -> write p ({!   !} , v) } )-- \ p v -> get p >>= foldM (return o fst) >>= \ a -> write p (FixMC {!   !} (a , [])) } ) --\ p v -> get p >>= \ pv -> write p \ B alg -> foldM return pv >>= \ {(a , lst) -> alg (a , p :: lst) } } )
   where open BaseVarMonad bvm
 
 
