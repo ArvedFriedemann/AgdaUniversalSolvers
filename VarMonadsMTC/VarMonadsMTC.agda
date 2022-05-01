@@ -136,6 +136,9 @@ FixM M F = forall A -> MAlgebra M F A -> M A
 foldM : MAlgebra M F A -> FixM M F -> M A
 foldM {A = A} alg fa = fa A alg
 
+FixMC : {{mon : Monad M}} -> (forall {A} {B} -> (A -> M B) -> F A -> M (F B) ) -> F (FixM M F) -> FixM M F
+FixMC fmapM f B alg = fmapM (foldM alg) f >>= alg
+
 open import Data.Maybe using () renaming (map to mapMab)
 
 record SpecVarMonad (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
@@ -154,11 +157,12 @@ sequence = foldr (\ ma mlst -> (| ma :: mlst |)) (return [])
 testConstr : BaseVarMonad M V -> BaseVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) )) -x- SpecVarMonad M (\ A -> V $ FixM M (\ R -> A -x- List (V R) )) (List (V $ FixM M (\ R -> A -x- List (V R) )))
 testConstr {M} {V = V} bvm = ( record {
       new = \ x -> new \ B alg -> alg (x , []);
-      get = \ p -> get p >>= \v -> foldM (return o fst) v ;
+      get = \ p -> get p >>= foldM (return o fst);
       write = \ p v -> write p \ B alg -> alg (v , []) }
     ) , ( record {
-      get = \ p -> get p >>= \v -> foldM (\ {(_ , lst) -> sequence (map get lst) >>= \ llst -> return $ concat llst}) v ;
-      write = \ p v -> get p >>= \ pv -> write p \ B alg -> foldM return pv >>= \ {(a , lst) -> alg (a , p :: lst) } } )
+      get = \p -> get p >>= foldM \ (_ , lst) -> concat <$> sequence (map get lst);
+      -- TODO: This does not work because the pointer type A depends. List needs to store values independent of A!
+      write = \ p v -> get p >>= foldM (return o fst) >>= \ a -> write p (FixMC {!   !} (a , [])) } ) --\ p v -> get p >>= \ pv -> write p \ B alg -> foldM return pv >>= \ {(a , lst) -> alg (a , p :: lst) } } )
   where open BaseVarMonad bvm
 
 {-}
@@ -282,7 +286,7 @@ open import Agda.Builtin.TrustMe
 postulate dummy : {A : Set} -> A
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
-safeLookup {A} (ptr p) mp with lookup p mp in eq
+safeLookup {A} (ptr p) mp with lookup p mp
 safeLookup {A} (ptr p) mp | just (B , b) with primTrustMe {x = A} {y = B}
 safeLookup {A} (ptr p) mp | just (B , b) | refl = b
 safeLookup {A} (ptr p) mp | nothing = dummy
