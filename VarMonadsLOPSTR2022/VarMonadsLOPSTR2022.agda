@@ -74,32 +74,70 @@ record BaseVarMonad (M : Set -> Set) (V : Set -> Set) : Set where
     overlap {{mon}} : Monad M
 
 ----------------------------------------------------------------
---DTC
+--MTC initial example
 ----------------------------------------------------------------
 
-{-# NO_POSITIVITY_CHECK #-}
-data Fix (F : Set -> Set) : Set where
-  In : F (Fix F) -> Fix F
+Algebra : (F : Set -> Set) -> (A : Set) -> Set
+Algebra F A = F A -> A
+
+Fix : (F : Set -> Set) -> Set
+Fix F = forall A -> Algebra F A -> A
+
+foldF : Algebra F A -> Fix F -> A
+foldF {A = A} alg f = f A alg
 
 data ListF (A : Set) (B : Set) : Set where
   nil : ListF A B
-  lcons : A -> ListF A B -> ListF A B
+  lcons : A -> B -> ListF A B
+
 
 mapListF : (B -> D) -> ListF A B -> ListF A D
 mapListF f nil = nil
-mapListF f (lcons x lst) = lcons x (mapListF f lst)
+mapListF f (lcons x lst) = lcons x (f lst)
 
 instance
   Functor-ListF : Functor (ListF A)
   Functor-ListF = record { _<$>_ = mapListF }
 
-Algebra : (F : Set -> Set) -> (A : Set) -> Set
-Algebra F A = F A -> A
+In : {{func : Functor F}} -> F (Fix F) -> Fix F
+In f B alg = alg (foldF alg <$> f)
 
-{-# TERMINATING #-}
-foldF : {{func : Functor F}} -> Algebra F A -> Fix F -> A
-foldF alg (In fx) = alg (foldF alg <$> fx)
+[-] : Fix (ListF A)
+[-] = In nil
 
+_:-:_ : A -> Fix (ListF A) -> Fix (ListF A)
+_:-:_ x xs = In (lcons x xs)
+
+anyF : Fix (ListF Bool) -> Bool
+anyF = foldF \ {
+  nil -> false;
+  (lcons x xs) -> x || xs}
+
+---------------------------------------------------------------
+--MTC with VarMonads
+---------------------------------------------------------------
+
+MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
+MAlgebra M F A = F A -> M A
+
+FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
+FixM M F = forall A -> MAlgebra M F A -> M A
+
+foldM : MAlgebra M F A -> FixM M F -> M A
+foldM {A = A} alg f = f A alg
+
+record MFunctor (M : Set -> Set) (F : Set -> Set) : Set where
+  field
+    _<$M>_ : (A -> M B) -> F A -> M (F B)
+
+instance
+  Functor-MFunctor : {{func : Functor F}} -> {{bvm : BaseVarMonad M V}} -> MFunctor M (F o V)
+  Functor-MFunctor {F} {M} {V} {{bvm = bvm}} = record {
+      _<$M>_ = \ {A = A} {B = B} f fa -> let
+        tmp : F (M B)
+        tmp = ((_>>= f) o get) <$> fa
+        in {!!} } --(f o get) <$> fa
+    where open BaseVarMonad bvm
 ---------------------------------------------------------------
 -- Variable tracking
 ---------------------------------------------------------------
