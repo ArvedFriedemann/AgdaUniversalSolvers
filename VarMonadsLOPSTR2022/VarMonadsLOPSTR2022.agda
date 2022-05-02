@@ -129,15 +129,45 @@ foldM {A = A} alg f = f A alg
 record MFunctor (M : Set -> Set) (F : Set -> Set) : Set where
   field
     _<$M>_ : (A -> M B) -> F A -> M (F B)
+    overlap {{mon}} : Monad M
+open MFunctor {{...}} public
 
 instance
-  Functor-MFunctor : {{func : Functor F}} -> {{bvm : BaseVarMonad M V}} -> MFunctor M (F o V)
-  Functor-MFunctor {F} {M} {V} {{bvm = bvm}} = record {
-      _<$M>_ = \ {A = A} {B = B} f fa -> let
-        tmp : F (M B)
-        tmp = ((_>>= f) o get) <$> fa
-        in {!!} } --(f o get) <$> fa
-    where open BaseVarMonad bvm
+  ListF-MFunctor : {{mon : Monad M}} -> MFunctor M (ListF A)
+  ListF-MFunctor = record {  _<$M>_ = \ {
+      f nil -> return nil;
+      f (lcons x xs) -> f xs >>= return o lcons x} }
+
+InM : {{mfunc : MFunctor M F}} -> F (FixM M F) -> FixM M F
+InM fx B alg = (foldM alg <$M> fx) >>= alg
+
+foldBVM :
+  {{bvm : BaseVarMonad M V}} ->
+  {{mfunc : MFunctor M F}} ->
+  Algebra F A -> FixM M (F o V) -> M A
+foldBVM {{bvm = bvm}} alg = foldM \ f -> get <$M> f >>= return o alg
+  where open BaseVarMonad bvm
+
+{-}
+anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
+anyM {{bvm = bvm}} = foldM \ {
+    nil -> return false;
+    (lcons x xs) -> (x ||_) <$> get xs}
+  where open BaseVarMonad bvm
+  -}
+--this reads more values than it needs to
+anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
+anyM = foldBVM \ {
+  nil -> false;
+  (lcons x xs) -> x || xs }
+
+anyOptiM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
+anyOptiM {{bvm = bvm}} = foldM \ {
+    nil -> return false;
+    (lcons true xs) -> return true;
+    (lcons false xs) -> get xs}
+  where open BaseVarMonad bvm
+  
 ---------------------------------------------------------------
 -- Variable tracking
 ---------------------------------------------------------------
