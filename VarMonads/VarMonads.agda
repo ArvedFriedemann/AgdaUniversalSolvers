@@ -408,7 +408,7 @@ open import Agda.Builtin.TrustMe
 postulate dummy : {A : Set} -> A
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
-safeLookup {A} (ptr p) mp with lookup p mp in eq
+safeLookup {A} (ptr p) mp with lookup p mp
 safeLookup {A} (ptr p) mp | just (B , b) with primTrustMe {x = A} {y = B}
 safeLookup {A} (ptr p) mp | just (B , b) | refl = b
 safeLookup {A} (ptr p) mp | nothing = dummy
