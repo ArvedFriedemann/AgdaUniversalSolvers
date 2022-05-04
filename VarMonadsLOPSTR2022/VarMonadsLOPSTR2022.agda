@@ -77,6 +77,9 @@ record BaseVarMonad (M : Set -> Set) (V : Set -> Set) : Set where
 --MTC initial example
 ----------------------------------------------------------------
 
+anyNorm : List Bool -> Bool
+anyNorm = foldr (_||_) false
+
 Algebra : (F : Set -> Set) -> (A : Set) -> Set
 Algebra F A = F A -> A
 
@@ -138,26 +141,53 @@ instance
       f nil -> return nil;
       f (lcons x xs) -> f xs >>= return o lcons x} }
 
+  BVM-MFunctor : {{bvm : BaseVarMonad M V}} -> {{mfunc : MFunctor M F}} -> MFunctor M (F o V)
+  BVM-MFunctor {{bvm = bvm}} = record { _<$M>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$M> ls }
+    where open BaseVarMonad bvm
+
+  {-}
+  Var-MFunctor : {{bvm : BaseVarMonad M V}} -> MFunctor M V
+  Var-MFunctor {{bvm = bvm}} = record { _<$M>_ = \ mf va -> get va >>= mf >>= new }
+    where open BaseVarMonad bvm
+
+  Functor-MFunctor :
+    {{func : Functor F}} ->
+    {{mfunc : MFunctor M V}} ->
+    MFunctor M (F o V)
+  Functor-MFunctor = {!!}
+  -}
+
+
+
 InM : {{mfunc : MFunctor M F}} -> F (FixM M F) -> FixM M F
 InM fx B alg = (foldM alg <$M> fx) >>= alg
+
+[]M : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
+[]M = InM nil
+
+_::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ FixM M (ListF A o V) -> FixM M (ListF A o V)
+_::M_ x xs = InM $ lcons x xs
+
+
 
 foldBVM :
   {{bvm : BaseVarMonad M V}} ->
   {{mfunc : MFunctor M F}} ->
   Algebra F A -> FixM M (F o V) -> M A
-foldBVM {{bvm = bvm}} alg = foldM \ f -> get <$M> f >>= return o alg
+foldBVM {{bvm = bvm}} alg = foldM \ f -> alg <$> (get <$M> f)
   where open BaseVarMonad bvm
 
-{-}
+
 anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
 anyM {{bvm = bvm}} = foldM \ {
     nil -> return false;
-    (lcons x xs) -> (x ||_) <$> get xs}
+    (lcons x xs) -> (x ||_) <$> get xs }
   where open BaseVarMonad bvm
-  -}
+
 --this reads more values than it needs to
-anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyM = foldBVM \ {
+
+anyM' : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
+anyM' = foldBVM \ {
   nil -> false;
   (lcons x xs) -> x || xs }
 
@@ -167,7 +197,8 @@ anyOptiM {{bvm = bvm}} = foldM \ {
     (lcons true xs) -> return true;
     (lcons false xs) -> get xs}
   where open BaseVarMonad bvm
-  
+
+
 ---------------------------------------------------------------
 -- Variable tracking
 ---------------------------------------------------------------
