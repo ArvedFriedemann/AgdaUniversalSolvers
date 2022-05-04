@@ -204,7 +204,7 @@ anyOptiM {{bvm = bvm}} = foldM \ {
 ---------------------------------------------------------------
 
 AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
-AsmCont C V = C $ Sigma Set (\A -> (A -x- V A))
+AsmCont C V = C (Sigma Set \ A -> (A -x- V A))
 
 record TrackVarMonad (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
   field
