@@ -157,10 +157,11 @@ instance
   Functor-MFunctor = {!!}
   -}
 
-
-
 InM : {{mfunc : MFunctor M F}} -> F (FixM M F) -> FixM M F
 InM fx B alg = (foldM alg <$M> fx) >>= alg
+
+ExM : {{mfunc : MFunctor M F}} -> FixM M F -> M $ F (FixM M F)
+ExM = foldM ((return o InM) <$M>_)
 
 []M : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
 []M = InM nil
@@ -228,3 +229,31 @@ BaseVarMonad=>ConstrTrackVarMonad {C = C} bbvm = record {
     getCurrAssignments = getS }
   where
     open BaseVarMonad bbvm
+
+
+record SpecVarMonad (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
+  field
+    get : V A -> M B
+    write : V A -> B -> M T
+    overlap {{mon}} : Monad M
+
+
+RecTupPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> (A : Set) -> Set
+RecTupPtr M V F A = V $ A -x- FixM M (\R -> F (\ B -> V (B -x- R) ) )
+
+AsmPtr : (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) (A : Set) -> Set
+--RecTupPtr M V C A = V (A -x- FixM M (\ R -> AsmCont C (\ B -> V (B -x- R)) ) )
+AsmPtr M V C = RecTupPtr M V (AsmCont C)
+
+recProdVarMonad : BaseVarMonad M V -> (B : Set ) -> (F : (Set -> Set) -> Set) ->
+  {{mfunc : MFunctor M (\ R -> F (\B -> V (B -x- R)))}} ->
+  (forall {V'} -> F V') ->
+  BaseVarMonad M (RecTupPtr M V F) -x- SpecVarMonad M (RecTupPtr M V F) (F (RecTupPtr M V F))
+recProdVarMonad bvm B F mpty = (record {
+      new = new o (_, InM mpty) ;
+      get = (fst <$>_) o get ;
+      write = \ p v -> write p (v , InM mpty) }
+    ) , (record {
+      get = \ p -> snd <$> get p >>= ExM ;
+      write = \ p v -> fst <$> get p >>= \ a -> write p (a , InM v) })
+  where open BaseVarMonad bvm
