@@ -93,7 +93,7 @@ data ListF (A : Set) (B : Set) : Set where
   nil : ListF A B
   lcons : A -> B -> ListF A B
 
-
+{-}
 mapListF : (B -> D) -> ListF A B -> ListF A D
 mapListF f nil = nil
 mapListF f (lcons x lst) = lcons x (f lst)
@@ -115,7 +115,7 @@ anyF : Fix (ListF Bool) -> Bool
 anyF = foldF \ {
   nil -> false;
   (lcons x xs) -> x || xs}
-
+-}
 ---------------------------------------------------------------
 --MTC with VarMonads
 ---------------------------------------------------------------
@@ -145,31 +145,19 @@ instance
   BVM-MFunctor {{bvm = bvm}} = record { _<$M>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$M> ls }
     where open BaseVarMonad bvm
 
-  {-}
-  Var-MFunctor : {{bvm : BaseVarMonad M V}} -> MFunctor M V
-  Var-MFunctor {{bvm = bvm}} = record { _<$M>_ = \ mf va -> get va >>= mf >>= new }
-    where open BaseVarMonad bvm
 
-  Functor-MFunctor :
-    {{func : Functor F}} ->
-    {{mfunc : MFunctor M V}} ->
-    MFunctor M (F o V)
-  Functor-MFunctor = {!!}
-  -}
 
 InM : {{mfunc : MFunctor M F}} -> F (FixM M F) -> FixM M F
 InM fx B alg = (foldM alg <$M> fx) >>= alg
 
 ExM : {{mfunc : MFunctor M F}} -> FixM M F -> M $ F (FixM M F)
 ExM = foldM ((return o InM) <$M>_)
-
+{-}
 []M : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
 []M = InM nil
 
 _::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ FixM M (ListF A o V) -> FixM M (ListF A o V)
 _::M_ x xs = InM $ lcons x xs
-
-
 
 foldBVM :
   {{bvm : BaseVarMonad M V}} ->
@@ -199,10 +187,12 @@ anyOptiM {{bvm = bvm}} = foldM \ {
     (lcons false xs) -> get xs}
   where open BaseVarMonad bvm
 
+  -}
 
 ---------------------------------------------------------------
 -- Variable tracking
 ---------------------------------------------------------------
+
 
 AsmCont : (C : Set -> Set) -> (V : Set -> Set) -> Set
 AsmCont C V = C (Sigma Set \ A -> (A -x- V A))
@@ -245,11 +235,12 @@ AsmPtr : (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) (A : Set) -> Set
 --RecTupPtr M V C A = V (A -x- FixM M (\ R -> AsmCont C (\ B -> V (B -x- R)) ) )
 AsmPtr M V C = RecTupPtr M V (AsmCont C)
 
-recProdVarMonad : BaseVarMonad M V -> (B : Set ) -> (F : (Set -> Set) -> Set) ->
+
+recProdVarMonad : BaseVarMonad M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
   {{mfunc : MFunctor M (\ R -> F (\B -> V (B -x- R)))}} ->
   (forall {V'} -> F V') ->
   BaseVarMonad M (RecTupPtr M V F) -x- SpecVarMonad M (RecTupPtr M V F) (F (RecTupPtr M V F))
-recProdVarMonad bvm B F mpty = (record {
+recProdVarMonad bvm mpty = (record {
       new = new o (_, InM mpty) ;
       get = (fst <$>_) o get ;
       write = \ p v -> write p (v , InM mpty) }
