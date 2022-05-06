@@ -268,16 +268,9 @@ BaseVarMonad=>CLVarMonad : BaseVarMonad M V ->
   CLVarMonad (StateT (AsmCont C (AsmPtr M V C)) M) (AsmPtr M V C) C
 BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
     bvm = record {
-      new = \ x -> do
-        p <- new x
-        r <- getCurrAssignments
-        writeR p (return r)
-        return p ;
+      new = \ x -> new x >>= putAssignments ;
       get = get ;
-      write = \ p v -> do
-        r <- getCurrAssignments
-        write p v
-        writeR p (return r) } ;
+      write = \ p v -> putAssignments p >> write p v };
     getReasons = getR }
   where
     vmtup = recProdVarMonad bvm {B = C $ AsmCont C (AsmPtr M V C)} {F = C o AsmCont C} mpty
@@ -286,3 +279,5 @@ BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
     open BaseVarMonad bvm using (mon)
     open TrackVarMonad trackM
     open SpecVarMonad lspec renaming (get to getR; write to writeR)
+    putAssignments : AsmPtr M V C A -> StateT (AsmCont C (AsmPtr M V C)) M (AsmPtr M V C A)
+    putAssignments p = getCurrAssignments >>= writeR p o return >> return p
