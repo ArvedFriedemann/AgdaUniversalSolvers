@@ -204,10 +204,10 @@ record TrackVarMonad (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set wh
   open BaseVarMonad bvm public
 
 
-BaseVarMonad=>ConstrTrackVarMonad : {{mpc : MonadPlus C}} ->
+BaseVarMonad=>TrackVarMonad : {{mpc : MonadPlus C}} ->
   BaseVarMonad M V ->
   TrackVarMonad C (StateT (AsmCont C V) M) V
-BaseVarMonad=>ConstrTrackVarMonad {C = C} bbvm = record {
+BaseVarMonad=>TrackVarMonad {C = C} bbvm = record {
     bvm = record {
       new = liftT o new ;
       get = \ {A = A} p -> do
@@ -248,3 +248,18 @@ recProdVarMonad bvm mpty = (record {
       get = \ p -> snd <$> get p >>= ExM ;
       write = \ p v -> fst <$> get p >>= \ a -> write p (a , InM v) })
   where open BaseVarMonad bvm
+
+record CLVarMonad (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
+  field
+    bvm : BaseVarMonad M V
+    getReasons : V A -> M $ C $ AsmCont C V
+
+BaseVarMonad=>CLVarMonad : BaseVarMonad M V ->
+  (forall {A} -> C A) ->
+  {{mfunc : MFunctor M (\ R -> C $ AsmCont C (\B -> V (B -x- R)))}} ->
+  {{mplus : MonadPlus C}} ->
+  CLVarMonad (StateT (AsmCont C V) M) (RecTupPtr M V (C o AsmCont C)) C
+BaseVarMonad=>CLVarMonad bvm mpty = {!!}
+  where
+    vmtup = recProdVarMonad bvm mpty
+    trackM = BaseVarMonad=>TrackVarMonad (fst vmtup)
