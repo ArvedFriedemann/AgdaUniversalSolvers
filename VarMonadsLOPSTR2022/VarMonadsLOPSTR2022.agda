@@ -253,6 +253,7 @@ record CLVarMonad (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
   field
     bvm : BaseVarMonad M V
     getReasons : V A -> M $ C $ AsmCont C V
+  open BaseVarMonad bvm
 
 liftSpecVarMonad : forall {I} -> {{mtrans : MonadTrans I}} -> {{mon : Monad (I M)}} -> SpecVarMonad M V B -> SpecVarMonad (I M) V B
 liftSpecVarMonad svm = record {
@@ -264,16 +265,24 @@ BaseVarMonad=>CLVarMonad : BaseVarMonad M V ->
   (forall {A} -> C A) ->
   {{mfunc : MFunctor M (\ R -> C $ AsmCont C (\B -> V (B -x- R)))}} ->
   {{mplus : MonadPlus C}} ->
-  CLVarMonad (StateT (AsmCont C V) M) (AsmPtr M V C) C
+  CLVarMonad (StateT (AsmCont C (AsmPtr M V C)) M) (AsmPtr M V C) C
 BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
     bvm = record {
-      new = {!   !} ;
-      get = {!   !} ;
-      write = {!   !} } ;
+      new = \ x -> do
+        p <- new x
+        r <- getCurrAssignments
+        writeR p (return r)
+        return p ;
+      get = get ;
+      write = \ p v -> do
+        r <- getCurrAssignments
+        write p v
+        writeR p (return r) } ;
     getReasons = getR }
   where
     vmtup = recProdVarMonad bvm {B = C $ AsmCont C (AsmPtr M V C)} {F = C o AsmCont C} mpty
     trackM = BaseVarMonad=>TrackVarMonad (fst vmtup)
     lspec = liftSpecVarMonad (snd vmtup)
+    open BaseVarMonad bvm using (mon)
     open TrackVarMonad trackM
     open SpecVarMonad lspec renaming (get to getR; write to writeR)
