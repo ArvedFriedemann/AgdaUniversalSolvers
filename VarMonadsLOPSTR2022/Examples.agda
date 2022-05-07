@@ -41,6 +41,11 @@ open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) r
 _::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ FixM M (ListF A o V) -> FixM M (ListF A o V)
 _::M_ x xs = InM $ lcons x xs
 
+[]VM : {{bvm : BaseVarMonad M V}} -> M $ FixM M (ListF A o V)
+[]VM = return []M
+
+infixr 5 _::VM_
+
 _::VM_ : {{bvm : BaseVarMonad M V}} -> A -> M $ FixM M (ListF A o V) -> M $ FixM M (ListF A o V)
 _::VM_ {{bvm = bvm}} x m = (x ::M_) <$> (m >>= new)
   where open BaseVarMonad bvm
@@ -73,6 +78,12 @@ anyOptiM {{bvm = bvm}} = foldM \ {
     (lcons false xs) -> get xs}
   where open BaseVarMonad bvm
 
--- anyTest :
+
+instance
+  defCLVarMonad = CLVarMonad.bvm defaultCLVarMonad
+
+open CLVarMonad defaultCLVarMonad
+open BaseVarMonad (CLVarMonad.bvm defaultCLVarMonad)
+-- anyTest : Bool
 anyTest = runDefTrackVarMonad $ do
-  return 5
+  false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons

@@ -316,8 +316,8 @@ instance
   mFuncListAsm : {{bvm : BaseVarMonad M V}} -> MFunctor M (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
   mFuncListAsm {{bvm = bvm}} = record { _<$M>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p) -> snd <$> get p >>= f >>= \ b -> new (v , b) >>= \ p' -> return (A , v , p')) lst) }
     where open BaseVarMonad bvm
-
-  defBaseVarMonad = defaultVarMonad
+  private
+    defBaseVarMonad = defaultVarMonad
 
 defaultCLVarMonad : CLVarMonad defaultCLVarMonadStateM defaultCLVarMonadV defCont
 defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad []
