@@ -218,7 +218,7 @@ recProdVarMonad : BaseVarMonad M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
 recProdVarMonad bvm mpty = (record {
       new = new o (_, InM mpty) ;
       get = (fst <$>_) o get ;
-      write = \ p v -> write p (v , InM mpty) }
+      write = \ p v -> snd <$> get p >>= \ b -> write p (v , b {-InM mpty-}) }
     ) , (record {
       get = \ p -> snd <$> get p >>= ExM ;
       write = \ p v -> fst <$> get p >>= \ a -> write p (a , InM v) })
