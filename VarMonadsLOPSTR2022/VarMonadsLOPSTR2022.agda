@@ -14,6 +14,9 @@ open import Category.Monad.State renaming (RawMonadState to MonadState)
 --open import Function.Identity.Categorical renaming (monad to monad-identity)
 --open import Function.Identity.Instances
 
+open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
+import Data.List.Categorical as LCat
+open LCat.TraversableM {{...}}
 
 open Functor {{...}} --renaming (_<$>_ to fmap)
 open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
@@ -62,6 +65,13 @@ instance
   monadIdentity =  record {
     return = IdentC ;
     _>>=_ = \ i fi -> fi (runIdentity i) }
+
+  monadPlusList = listMonadPlus
+
+
+state : {{mon : Monad M}} -> (S -> (B -x- S)) -> StateT S M B
+state f = f <$> getS >>= \ (r , s') -> putS s' >> return r
+
 
 {-
 Basic VarMonad modelling Haskell pointers. Problem: Not useful for solvers due to complete rewriting of variables.
@@ -152,42 +162,7 @@ InM fx B alg = (foldM alg <$M> fx) >>= alg
 
 ExM : {{mfunc : MFunctor M F}} -> FixM M F -> M $ F (FixM M F)
 ExM = foldM ((return o InM) <$M>_)
-{-}
-[]M : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
-[]M = InM nil
 
-_::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ FixM M (ListF A o V) -> FixM M (ListF A o V)
-_::M_ x xs = InM $ lcons x xs
-
-foldBVM :
-  {{bvm : BaseVarMonad M V}} ->
-  {{mfunc : MFunctor M F}} ->
-  Algebra F A -> FixM M (F o V) -> M A
-foldBVM {{bvm = bvm}} alg = foldM \ f -> alg <$> (get <$M> f)
-  where open BaseVarMonad bvm
-
-
-anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyM {{bvm = bvm}} = foldM \ {
-    nil -> return false;
-    (lcons x xs) -> (x ||_) <$> get xs }
-  where open BaseVarMonad bvm
-
---this reads more values than it needs to
-
-anyM' : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyM' = foldBVM \ {
-  nil -> false;
-  (lcons x xs) -> x || xs }
-
-anyOptiM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyOptiM {{bvm = bvm}} = foldM \ {
-    nil -> return false;
-    (lcons true xs) -> return true;
-    (lcons false xs) -> get xs}
-  where open BaseVarMonad bvm
-
-  -}
 
 ---------------------------------------------------------------
 -- Variable tracking
@@ -281,3 +256,75 @@ BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
     open SpecVarMonad lspec renaming (get to getR; write to writeR)
     putAssignments : AsmPtr M V C A -> StateT (AsmCont C (AsmPtr M V C)) M (AsmPtr M V C A)
     putAssignments p = getCurrAssignments >>= writeR p o return >> return p
+
+
+-------------------------------------------------
+-- Default VarMonad
+-------------------------------------------------
+open import Data.Nat.Properties renaming (<-strictTotalOrder to NatSTO)
+open import Data.Tree.AVL.Map NatSTO using (Map; lookup; insert) renaming (empty to empty-map)
+
+
+record NatPtr (A : Set) : Set where
+  constructor ptr
+  field
+    idx : Nat
+
+open NatPtr
+
+defaultState : Set
+defaultState = Nat -x- Map (Sigma Set id)
+
+defaultInit : defaultState
+defaultInit = (0 , empty-map)
+
+open import Agda.Builtin.TrustMe
+postulate dummy : {A : Set} -> A
+
+safeLookup : NatPtr A -> Map (Sigma Set id) -> A
+safeLookup {A} (ptr p) mp with lookup p mp
+safeLookup {A} (ptr p) mp | just (B , b) with primTrustMe {x = A} {y = B}
+safeLookup {A} (ptr p) mp | just (B , b) | refl = b
+safeLookup {A} (ptr p) mp | nothing = dummy
+
+defaultVarMonadStateM : Set -> Set
+defaultVarMonadStateM = StateT defaultState Identity
+
+defaultVarMonad : BaseVarMonad defaultVarMonadStateM NatPtr
+defaultVarMonad = record {
+    new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
+    get = \ { {A} p -> state \ (n , mp) -> safeLookup p mp , (n , mp) } ;
+    write = \ {A} p v -> state \ (n , mp) -> tt , n , (insert (idx p) (A , v) mp)
+  }
+
+runDefVarMonad : defaultVarMonadStateM A -> A
+runDefVarMonad m = fst $ runIdentity $ m defaultInit
+
+defCont : Set -> Set
+defCont = List
+
+--CLVarMonad (StateT (AsmCont C (AsmPtr M V C)) M) (AsmPtr M V C) C
+defaultCLVarMonadStateM : Set -> Set
+defaultCLVarMonadStateM = StateT
+  (AsmCont defCont (AsmPtr defaultVarMonadStateM NatPtr defCont))
+  defaultVarMonadStateM
+
+defaultCLVarMonadV : Set -> Set
+defaultCLVarMonadV = AsmPtr defaultVarMonadStateM NatPtr defCont
+
+instance
+  mFuncListAsm : {{bvm : BaseVarMonad M V}} -> MFunctor M (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
+  mFuncListAsm {{bvm = bvm}} = record { _<$M>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p) -> snd <$> get p >>= f >>= \ b -> new (v , b) >>= \ p' -> return (A , v , p')) lst) }
+    where open BaseVarMonad bvm
+
+  defBaseVarMonad = defaultVarMonad
+
+defaultCLVarMonad : CLVarMonad defaultCLVarMonadStateM defaultCLVarMonadV defCont
+defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad []
+
+runDefTrackVarMonad : defaultCLVarMonadStateM A -> A
+runDefTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
+
+-- anyTest :
+anyTest = runDefTrackVarMonad $ do
+  return 5
