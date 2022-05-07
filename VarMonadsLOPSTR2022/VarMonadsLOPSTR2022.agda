@@ -324,7 +324,3 @@ defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad []
 
 runDefTrackVarMonad : defaultCLVarMonadStateM A -> A
 runDefTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
-
--- anyTest :
-anyTest = runDefTrackVarMonad $ do
-  return 5
