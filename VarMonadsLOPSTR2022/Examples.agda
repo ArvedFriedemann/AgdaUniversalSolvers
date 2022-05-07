@@ -84,6 +84,14 @@ instance
 
 open CLVarMonad defaultCLVarMonad
 open BaseVarMonad (CLVarMonad.bvm defaultCLVarMonad)
--- anyTest : Bool
+
+anyTest : List (AsmCont List _)
 anyTest = runDefTrackVarMonad $ do
   false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons
+
+reasonTest : List (AsmCont List _)
+reasonTest = runDefTrackVarMonad $ do
+  p <- new 5
+  get p
+  write p 6
+  getReasons p
