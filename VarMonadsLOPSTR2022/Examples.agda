@@ -57,6 +57,10 @@ foldBVM :
 foldBVM {{bvm = bvm}} alg = foldM \ f -> alg <$> (get <$M> f)
   where open BaseVarMonad bvm
 
+toList : {{bvm : BaseVarMonad M V}} -> FixM M (ListF Bool o V) -> M (List Bool)
+toList = foldBVM \{
+  nil -> [];
+  (lcons x xs) -> x :: xs }
 
 anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
 anyM {{bvm = bvm}} = foldM \ {
@@ -79,15 +83,45 @@ anyOptiM {{bvm = bvm}} = foldM \ {
   where open BaseVarMonad bvm
 
 
+
+instance
+  MFunctor-TupPtr : {{bvm : BaseVarMonad M V}} -> {A : Set} -> MFunctor M (\ R -> V (List R))
+  MFunctor-TupPtr {{bvm = bvm}} = record { _<$M>_ = \ f fx -> get fx >>= \ lst -> sequenceM (map f lst) >>= new }
+    where open BaseVarMonad bvm
+
+module Temp where
+  open BaseVarMonad defaultVarMonad
+  instance
+    bvm = defaultVarMonad
+  listTest : Bool
+  listTest = runDefVarMonad $
+    false ::VM true ::VM false ::VM []VM >>= anyOptiM
+
+module Temp2 where
+  open TrackVarMonad (BaseVarMonad=>TrackVarMonad defaultVarMonad)
+  instance
+    bvmi = bvm
+
+  run : StateT (AsmCont List NatPtr) defaultVarMonadStateM A -> A
+  run = runDefVarMonad o \ m -> fst <$> m []
+  listTest = run $
+    false ::VM true ::VM false ::VM []VM >>= anyOptiM >> getCurrAssignments
+
+  asmTest = run $ do
+    true ::VM []VM >>= toList
+
+
 instance
   defCLVarMonad = CLVarMonad.bvm defaultCLVarMonad
 
-open CLVarMonad defaultCLVarMonad
-open BaseVarMonad (CLVarMonad.bvm defaultCLVarMonad)
 
-anyTest : List (AsmCont List _)
+open CLVarMonad defaultCLVarMonad
+--open BaseVarMonad (CLVarMonad.bvm defaultCLVarMonad)
+
+--anyTest : List (AsmCont List _)
+anyTest : List Nat
 anyTest = runDefTrackVarMonad $ do
-  false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons
+  false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= (map length <$>_) o getReasons
 
 reasonTest : List (AsmCont List _)
 reasonTest = runDefTrackVarMonad $ do
@@ -95,3 +129,13 @@ reasonTest = runDefTrackVarMonad $ do
   get p
   write p 6
   getReasons p
+
+--reasonRet : (AsmCont List _)
+reasonRet = runDefTrackVarMonad $ do
+    p <- new 5
+    get p
+    get p
+    getCurrAssignments
+
+--AsmContTest : FixM defaultCLVarMonadStateM (\ R -> defaultCLVarMonadV (List R))
+AsmContTest = runDefTrackVarMonad $ return 5 --InM <$> new {A = List (FixM defaultCLVarMonadStateM (\ R -> defaultCLVarMonadV (List R))) } []
