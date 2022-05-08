@@ -1,5 +1,5 @@
 {-# OPTIONS --type-in-type #-}
-{-# OPTIONS --overlapping-instances #-}
+--{-# OPTIONS --overlapping-instances #-}
 {-# OPTIONS --guardedness #-}
 {-# OPTIONS --rewriting #-}
 
@@ -18,9 +18,11 @@ open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
 open LCat.TraversableM {{...}}
 
-open Functor {{...}} --renaming (_<$>_ to fmap)
-open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
-open Monad {{...}} hiding (_<$>_;_⊛_;pure)
+--open Functor {{...}} --renaming (_<$>_ to fmap)
+--open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
+open Monad {{...}}
+-- hiding (_<$>_;_⊛_;pure)
+-- open MonadModule.rawIApplicative renaming (_⊛_ to _<*>_)
 open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (∅ to mzero;_∣_ to _<|>_)
 open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (get to getS; put to putS; modify to modifyS)
 
@@ -42,13 +44,13 @@ data Identity A : Set where
 runIdentity : Identity A -> A
 runIdentity (IdentC x) = x
 
-instance
+instance {-}
   monadApplicative : {{mon : Monad M}} -> Applicative M
   monadApplicative {{mon = mon}} = Monad.rawIApplicative mon
 
   applicativeFunctor : {{apl : Applicative F}} -> Functor F
   applicativeFunctor {{apl = apl}} = Applicative.rawFunctor apl
-
+  -}
   stateTMonad : {{mon : Monad M}} -> Monad (StateT S M)
   stateTMonad {S = S} {{mon = mon}} = StateTMonad S mon
 
@@ -57,17 +59,16 @@ instance
 
   stateTMonadTrans : MonadTrans (StateT S)
   stateTMonadTrans = record { liftT = \ ma s -> (_, s) <$> ma }
-
+  {-
   monadPlusMonad : {{mp : MonadPlus M}} -> Monad M
   monadPlusMonad {{mp = mp}} = MonadPlus.monad mp
-
+  -}
   monadIdentity : Monad Identity
   monadIdentity =  record {
     return = IdentC ;
     _>>=_ = \ i fi -> fi (runIdentity i) }
 
   monadPlusList = listMonadPlus
-
 
 state : {{mon : Monad M}} -> (S -> (B -x- S)) -> StateT S M B
 state f = f <$> getS >>= \ (r , s') -> putS s' >> return r
@@ -152,16 +153,20 @@ instance
       f (lcons x xs) -> f xs >>= return o lcons x} }
 
   BVM-MFunctor : {{bvm : BaseVarMonad M V}} -> {{mfunc : MFunctor M F}} -> MFunctor M (F o V)
-  BVM-MFunctor {{bvm = bvm}} = record { _<$M>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$M> ls }
-    where open BaseVarMonad bvm
+  BVM-MFunctor {{bvm = bvm}} {{mfunc = mfunc}} = record { _<$M>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$M>' ls }
+    where
+      open BaseVarMonad bvm
+      open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
 
 
 
 InM : {{mfunc : MFunctor M F}} -> F (FixM M F) -> FixM M F
-InM fx B alg = (foldM alg <$M> fx) >>= alg
+InM {{mfunc = mfunc}} fx B alg = (foldM alg <$M>' fx) >>= alg
+  where open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
 
 ExM : {{mfunc : MFunctor M F}} -> FixM M F -> M $ F (FixM M F)
-ExM = foldM ((return o InM) <$M>_)
+ExM {{mfunc = mfunc}} = foldM ((return o InM {{mfunc = mfunc}}) <$M>'_)
+  where open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
 
 
 ---------------------------------------------------------------
@@ -182,18 +187,19 @@ record TrackVarMonad (C : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set wh
 BaseVarMonad=>TrackVarMonad : {{mpc : MonadPlus C}} ->
   BaseVarMonad M V ->
   TrackVarMonad C (StateT (AsmCont C V) M) V
-BaseVarMonad=>TrackVarMonad {C = C} bbvm = record {
+BaseVarMonad=>TrackVarMonad {C = C} {{mpc = mpc}} bbvm = record {
     bvm = record {
       new = liftT o new ;
       get = \ {A = A} p -> do
         v <- liftT (get p)
-        modifyS (_<|> return (A , v , p))
+        modifyS (_<|> singleton (A , v , p))
         return v
         ;
       write = \ p -> liftT o write p } ;
     getCurrAssignments = getS }
   where
     open BaseVarMonad bbvm
+    open MonadPlus mpc using () renaming (return to singleton)
 
 
 record SpecVarMonad (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
@@ -215,13 +221,13 @@ recProdVarMonad : BaseVarMonad M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
   {{mfunc : MFunctor M (\ R -> F (\B -> V (B -x- R)))}} ->
   (forall {V'} -> F V') ->
   BaseVarMonad M (RecTupPtr M V F) -x- SpecVarMonad M (RecTupPtr M V F) (F (RecTupPtr M V F))
-recProdVarMonad bvm mpty = (record {
-      new = new o (_, InM mpty) ;
+recProdVarMonad bvm {{mfunc = mfunc}} mpty = (record {
+      new = new o (_, InM {{mfunc = mfunc}} mpty) ;
       get = (fst <$>_) o get ;
       write = \ p v -> snd <$> get p >>= \ b -> write p (v , b {-InM mpty-}) }
     ) , (record {
-      get = \ p -> snd <$> get p >>= ExM ;
-      write = \ p v -> fst <$> get p >>= \ a -> write p (a , InM v) })
+      get = \ p -> snd <$> get p >>= ExM {{mfunc = mfunc}} ;
+      write = \ p v -> fst <$> get p >>= \ a -> write p (a , InM {{mfunc = mfunc}} v) })
   where open BaseVarMonad bvm
 
 record CLVarMonad (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
@@ -242,7 +248,7 @@ BaseVarMonad=>CLVarMonad : BaseVarMonad M V ->
   {{mfunc : MFunctor M (\ R -> C $ AsmCont C (\B -> V (B -x- R)))}} ->
   {{mplus : MonadPlus C}} ->
   CLVarMonad (StateT (AsmCont C (AsmPtr M V C)) M) (AsmPtr M V C) C
-BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
+BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty {{mfunc}} {{mplus}} = record {
     bvm = record {
       new = \ x -> new x >>= putAssignments ;
       get = get ;
@@ -250,14 +256,15 @@ BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
     getReasons = getR ;
     getCurrAssignments = getCurrAssignments }
   where
-    vmtup = recProdVarMonad bvm {B = C $ AsmCont C (AsmPtr M V C)} {F = C o AsmCont C} mpty
+    vmtup = recProdVarMonad bvm {B = C $ AsmCont C (AsmPtr M V C)} {F = C o AsmCont C} {{mfunc = mfunc}} mpty
     trackM = BaseVarMonad=>TrackVarMonad (fst vmtup)
     lspec = liftSpecVarMonad (snd vmtup)
     open BaseVarMonad bvm using (mon)
     open TrackVarMonad trackM
     open SpecVarMonad lspec renaming (get to getR; write to writeR)
     putAssignments : AsmPtr M V C A -> StateT (AsmCont C (AsmPtr M V C)) M (AsmPtr M V C A)
-    putAssignments p = getCurrAssignments >>= writeR p o return >> return p
+    putAssignments p = getCurrAssignments >>= writeR p o singleton >> return p
+      where open MonadPlus mplus using () renaming (return to singleton)
 
 
 -------------------------------------------------
@@ -272,7 +279,7 @@ record NatPtr (A : Set) : Set where
   field
     idx : Nat
 
-open NatPtr
+open NatPtr public
 
 defaultState : Set
 defaultState = Nat -x- Map (Sigma Set id)
@@ -323,7 +330,7 @@ instance
     defBaseVarMonad = defaultVarMonad
 
 defaultCLVarMonad : CLVarMonad defaultCLVarMonadStateM defaultCLVarMonadV defCont
-defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad []
+defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad [] {{mfunc = mFuncListAsm}}
 
 runDefTrackVarMonad : defaultCLVarMonadStateM A -> A
 runDefTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
