@@ -24,11 +24,6 @@ open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
 open LCat.TraversableM {{...}}
 
-open Monad {{...}}
-open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (∅ to mzero;_∣_ to _<|>_)
-open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (get to getS; put to putS; modify to modifyS)
-
-
 ------------------------------------------------------
 --Initial Example Lists
 ------------------------------------------------------
@@ -130,11 +125,11 @@ trustVal {A} {B} a with primTrustMe {x = A} {y = B}
 
 --anyTest : List (AsmCont List _)
 --anyTest : List Nat
-anyTest : List $ List (List Bool -x- Nat)
+anyTest : List $ List (Set -x- Nat)
 anyTest = runDefTrackVarMonad $ do
   p <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new
   res <- getReasons p
-  sequenceM $ map (sequenceM o map \ (T , v , d) -> (_, idx d) <$> toList (trustVal v)) res
+  sequenceM $ map (sequenceM o map \ (T , v , d) -> return (T , idx d) ) res
 
 reasonTest : List (AsmCont List _)
 reasonTest = runDefTrackVarMonad $ do
