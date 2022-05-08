@@ -122,13 +122,19 @@ instance
 open CLVarMonad defaultCLVarMonad
 --open BaseVarMonad (CLVarMonad.bvm defaultCLVarMonad)
 
+open import Agda.Builtin.TrustMe
+
+trustVal : (a : A) -> B
+trustVal {A} {B} a with primTrustMe {x = A} {y = B}
+...| refl = a
+
 --anyTest : List (AsmCont List _)
 --anyTest : List Nat
---anyTest : List $ List Nat
+anyTest : List $ List (List Bool -x- Nat)
 anyTest = runDefTrackVarMonad $ do
   p <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new
   res <- getReasons p
-  return $ map (map \ (T , v , p) -> idx p) res
+  sequenceM $ map (sequenceM o map \ (T , v , d) -> (_, idx d) <$> toList (trustVal v)) res
 
 reasonTest : List (AsmCont List _)
 reasonTest = runDefTrackVarMonad $ do
