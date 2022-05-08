@@ -182,7 +182,10 @@ instance
 
 
 defaultConstrVarMonad : ConstrVarMonad defaultConstraint defaultVarMonadStateM NatPtr
-defaultConstrVarMonad = {!!}
+defaultConstrVarMonad = record {
+    new = new ;
+    get = get ;
+    write = write }
   where open BaseVarMonad (defaultVarMonad)
 
 instance
@@ -193,8 +196,9 @@ instance
     cmFuncListAsm :
       {{cvm : ConstrVarMonad K M V}} ->
       {{k : K (FixM M (\ R -> List $ ConstrAsmCont K List (\B -> V (B -x- R)))) }} ->
+      {{ktup : forall {A} {B} -> {{ka : K A}} -> {{kb : K B}} -> K (A -x- B) }} ->
       CMFunctor K M (\ R -> List $ ConstrAsmCont K List (\B -> V (B -x- R)))
-    cmFuncListAsm {{cvm = cvm}} = record { _<$CM>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p , k) -> snd <$> get { {!!} } {{ k = {!!} }} p >>= f >>= \ b -> new {{ k = {!!} }} (v , b) >>= \ p' -> return (A , v , p' , {!!} )) lst) }
+    cmFuncListAsm {{cvm = cvm}} {{ktup = ktup}} = record { _<$CM>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p , k) -> snd <$> get {{k = ktup {{ka = k}} }} p >>= f >>= \ b -> new {{ k = ktup {{ka = k}} }} (v , b) >>= \ p' -> return (A , v , p' , k )) lst) }
       where open ConstrVarMonad cvm
 
 defaultConstrCLVarMonadStateM : Set -> Set
@@ -207,7 +211,7 @@ defaultConstrCLVarMonadV : Set -> Set
 defaultConstrCLVarMonadV = ConstrAsmPtr defaultConstraint defaultVarMonadStateM NatPtr defCont
 
 defaultConstrCLVarMonad : ConstrCLVarMonad defaultConstraint defaultConstrCLVarMonadStateM defaultConstrCLVarMonadV defCont
-defaultConstrCLVarMonad = ConstrVarMonad=>ConstrCLVarMonad defaultConstrVarMonad [] {{mfunc = cmFuncListAsm}}
+defaultConstrCLVarMonad = ConstrVarMonad=>ConstrCLVarMonad defaultConstrVarMonad [] {{mfunc = cmFuncListAsm {{k = tt}} }} {{fixK = tt }} {{ffixK = tt }} {{ktup = tt}}
 
 runDefConstrTrackVarMonad : defaultConstrCLVarMonadStateM A -> A
 runDefConstrTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
