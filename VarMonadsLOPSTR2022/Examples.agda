@@ -1,5 +1,5 @@
 {-# OPTIONS --type-in-type #-}
-{-# OPTIONS --overlapping-instances #-}
+--{-# OPTIONS --overlapping-instances #-}
 {-# OPTIONS --guardedness #-}
 {-# OPTIONS --rewriting #-}
 
@@ -24,9 +24,7 @@ open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
 open LCat.TraversableM {{...}}
 
-open Functor {{...}} --renaming (_<$>_ to fmap)
-open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
-open Monad {{...}} hiding (_<$>_;_⊛_;pure)
+open Monad {{...}}
 open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (∅ to mzero;_∣_ to _<|>_)
 open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (get to getS; put to putS; modify to modifyS)
 
@@ -35,11 +33,15 @@ open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) r
 --Initial Example Lists
 ------------------------------------------------------
 
+LVMFunc : {{bvm : BaseVarMonad M V}} -> MFunctor M (ListF A o V)
+LVMFunc {{bvm}} = BVM-MFunctor {{bvm}} {{ListF-MFunctor}}
+
 []M : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
-[]M = InM nil
+[]M {{bvm}} = InM {{LVMFunc}} nil
+
 
 _::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ FixM M (ListF A o V) -> FixM M (ListF A o V)
-_::M_ x xs = InM $ lcons x xs
+_::M_ {{bvm}} x xs = InM {{LVMFunc}} $ lcons x xs
 
 []VM : {{bvm : BaseVarMonad M V}} -> M $ FixM M (ListF A o V)
 []VM = return []M
@@ -54,11 +56,13 @@ foldBVM :
   {{bvm : BaseVarMonad M V}} ->
   {{mfunc : MFunctor M F}} ->
   Algebra F A -> FixM M (F o V) -> M A
-foldBVM {{bvm = bvm}} alg = foldM \ f -> alg <$> (get <$M> f)
-  where open BaseVarMonad bvm
+foldBVM {{bvm}} {{mfunc}} alg = foldM \ f -> alg <$> (get <$M>' f)
+  where
+    open BaseVarMonad bvm
+    open MFunctor mfunc renaming (_<$M>_ to _<$M>'_)
 
 toList : {{bvm : BaseVarMonad M V}} -> FixM M (ListF Bool o V) -> M (List Bool)
-toList = foldBVM \{
+toList = foldBVM {{mfunc = ListF-MFunctor}} \{
   nil -> [];
   (lcons x xs) -> x :: xs }
 
@@ -71,7 +75,7 @@ anyM {{bvm = bvm}} = foldM \ {
 --this reads more values than it needs to
 
 anyM' : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyM' = foldBVM \ {
+anyM' = foldBVM {{mfunc = ListF-MFunctor}} \ {
   nil -> false;
   (lcons x xs) -> x || xs }
 
@@ -119,9 +123,12 @@ open CLVarMonad defaultCLVarMonad
 --open BaseVarMonad (CLVarMonad.bvm defaultCLVarMonad)
 
 --anyTest : List (AsmCont List _)
-anyTest : List Nat
+--anyTest : List Nat
+--anyTest : List $ List Nat
 anyTest = runDefTrackVarMonad $ do
-  false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= (map length <$>_) o getReasons
+  p <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new
+  res <- getReasons p
+  return $ map (map \ (T , v , p) -> idx p) res
 
 reasonTest : List (AsmCont List _)
 reasonTest = runDefTrackVarMonad $ do
