@@ -7,10 +7,10 @@ module VarMonadsLOPSTR2022.VarMonadsLOPSTR2022 where
 
 open import AgdaAsciiPrelude.AsciiPrelude
 
-open import Category.Functor renaming (RawFunctor to Functor)
-open import Category.Applicative renaming (RawApplicative to Applicative)
-open import Category.Monad renaming (RawMonad to Monad; RawMonadPlus to MonadPlus)
-open import Category.Monad.State renaming (RawMonadState to MonadState)
+open import Category.Functor using () renaming (RawFunctor to Functor) public
+open import Category.Applicative using () renaming (RawApplicative to Applicative) public
+open import Category.Monad using () renaming (RawMonad to Monad; RawMonadPlus to MonadPlus) public
+open import Category.Monad.State using (StateT; StateTMonad; StateTMonadState) renaming (RawMonadState to MonadState) public
 --open import Function.Identity.Categorical renaming (monad to monad-identity)
 --open import Function.Identity.Instances
 
@@ -20,11 +20,11 @@ open LCat.TraversableM {{...}}
 
 --open Functor {{...}} --renaming (_<$>_ to fmap)
 --open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
-open Monad {{...}}
+open Monad {{...}} public
 -- hiding (_<$>_;_⊛_;pure)
 -- open MonadModule.rawIApplicative renaming (_⊛_ to _<*>_)
-open MonadPlus {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (∅ to mzero;_∣_ to _<|>_)
-open MonadState {{...}} hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) renaming (get to getS; put to putS; modify to modifyS)
+open MonadPlus {{...}} using () {- hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) -} renaming (∅ to mzero;_∣_ to _<|>_) public
+open MonadState {{...}} using () {- hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) -} renaming (get to getS; put to putS; modify to modifyS) public
 
 private
   variable
@@ -36,7 +36,7 @@ record MonadTrans (T : (Set -> Set) -> Set -> Set) : Set where
     liftT : {{mon : Monad M}} -> M A -> T M A
     --overlap {{mon'}} : {{mon : Monad M}} -> Monad (T M)
 
-open MonadTrans {{...}}
+open MonadTrans {{...}} public
 
 data Identity A : Set where
   IdentC : A -> Identity A
