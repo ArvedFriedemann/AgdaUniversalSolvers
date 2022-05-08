@@ -16,7 +16,7 @@ open import Category.Monad.State using (StateT; StateTMonad; StateTMonadState) r
 
 open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
-open LCat.TraversableM {{...}}
+open LCat.TraversableM {{...}} public
 
 --open Functor {{...}} --renaming (_<$>_ to fmap)
 --open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
@@ -322,11 +322,12 @@ defaultCLVarMonadV : Set -> Set
 defaultCLVarMonadV = AsmPtr defaultVarMonadStateM NatPtr defCont
 
 instance
-  private
     mFuncListAsm : {{bvm : BaseVarMonad M V}} -> MFunctor M (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
     mFuncListAsm {{bvm = bvm}} = record { _<$M>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p) -> snd <$> get p >>= f >>= \ b -> new (v , b) >>= \ p' -> return (A , v , p')) lst) }
       where open BaseVarMonad bvm
 
+instance
+  private
     defBaseVarMonad = defaultVarMonad
 
 defaultCLVarMonad : CLVarMonad defaultCLVarMonadStateM defaultCLVarMonadV defCont
