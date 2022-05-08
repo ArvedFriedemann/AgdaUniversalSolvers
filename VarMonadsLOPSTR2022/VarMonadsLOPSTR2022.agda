@@ -228,7 +228,8 @@ record CLVarMonad (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
   field
     bvm : BaseVarMonad M V
     getReasons : V A -> M $ C $ AsmCont C V
-  open BaseVarMonad bvm
+    getCurrAssignments : M $ AsmCont C V
+  open BaseVarMonad bvm public
 
 liftSpecVarMonad : forall {I} -> {{mtrans : MonadTrans I}} -> {{mon : Monad (I M)}} -> SpecVarMonad M V B -> SpecVarMonad (I M) V B
 liftSpecVarMonad svm = record {
@@ -246,7 +247,8 @@ BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty = record {
       new = \ x -> new x >>= putAssignments ;
       get = get ;
       write = \ p v -> putAssignments p >> write p v };
-    getReasons = getR }
+    getReasons = getR ;
+    getCurrAssignments = getCurrAssignments }
   where
     vmtup = recProdVarMonad bvm {B = C $ AsmCont C (AsmPtr M V C)} {F = C o AsmCont C} mpty
     trackM = BaseVarMonad=>TrackVarMonad (fst vmtup)
@@ -313,10 +315,11 @@ defaultCLVarMonadV : Set -> Set
 defaultCLVarMonadV = AsmPtr defaultVarMonadStateM NatPtr defCont
 
 instance
-  mFuncListAsm : {{bvm : BaseVarMonad M V}} -> MFunctor M (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
-  mFuncListAsm {{bvm = bvm}} = record { _<$M>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p) -> snd <$> get p >>= f >>= \ b -> new (v , b) >>= \ p' -> return (A , v , p')) lst) }
-    where open BaseVarMonad bvm
   private
+    mFuncListAsm : {{bvm : BaseVarMonad M V}} -> MFunctor M (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
+    mFuncListAsm {{bvm = bvm}} = record { _<$M>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p) -> snd <$> get p >>= f >>= \ b -> new (v , b) >>= \ p' -> return (A , v , p')) lst) }
+      where open BaseVarMonad bvm
+
     defBaseVarMonad = defaultVarMonad
 
 defaultCLVarMonad : CLVarMonad defaultCLVarMonadStateM defaultCLVarMonadV defCont
