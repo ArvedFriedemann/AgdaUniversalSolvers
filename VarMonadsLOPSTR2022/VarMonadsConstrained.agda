@@ -6,7 +6,7 @@
 module VarMonadsLOPSTR2022.VarMonadsConstrained where
 
 open import AgdaAsciiPrelude.AsciiPrelude
-open import VarMonadsLOPSTR2022.VarMonadsLOPSTR2022
+open import VarMonadsLOPSTR2022.VarMonadsLOPSTR2022 public
 
 private
   variable
@@ -163,7 +163,11 @@ ConstrVarMonad=>ConstrCLVarMonad {K} {M} {V = V} {C = C} cvm mpty {{mfunc}} {{fi
     open ConstrTrackVarMonad trackM
     open ConstrSpecVarMonad lspec renaming (get to getR; write to writeR)
     putAssignments : {{K A}} -> ConstrAsmPtr K M V C A -> StateT (ConstrAsmCont K C (ConstrAsmPtr K M V C)) M (ConstrAsmPtr K M V C A)
-    putAssignments p = getCurrAssignments >>= writeR p o singleton >> return p
+    putAssignments p = do
+        asm <- getCurrAssignments
+        asm' <- getR p
+        writeR p (asm' <|> singleton asm)
+        return p
       where open MonadPlus mplus using () renaming (return to singleton)
 
 
@@ -175,11 +179,11 @@ record Show (A : Set) : Set where
   constructor ShowC
   field
     show : A -> String
+open Show {{...}} public
 
 record DefaultFunctions (A : Set) : Set where
   field
-    showM : {{cvm : ConstrVarMonad K M V}} ->
-      {{showI : forall {B} -> Show (V B)}} -> A -> M String
+    overlap {{showi}} : Show A
 
 open DefaultFunctions {{...}} public
 
@@ -190,20 +194,26 @@ defaultConstrAsmContTupF : (V : Set -> Set) (R : Set) -> Set
 defaultConstrAsmContTupF V R = defCont $ ConstrAsmCont defaultConstraint defCont (\ B -> V (B -x- R))
 
 instance
-  --alwaysI : defaultConstraint A
-  --alwaysI = tt
-  tupI : {{a : defaultConstraint A}} -> {{b : defaultConstraint B}} -> defaultConstraint (A -x- B)
-  tupI = record { showM = \ (x , y) -> do
-        a' <- showM x
-        b' <- showM y
-        return $ "(" ++s a' ++s " , "++s b' ++s ")" }
+  defaultFunctionsI : {{sha : Show A}} -> DefaultFunctions A
+  defaultFunctionsI = record {}
 
-  fixI : {{ff : defaultConstraint (F (CFixM defaultConstraint M F))}} ->
-          {{cmfunc : CMFunctor defaultConstraint M F}} -> defaultConstraint (CFixM defaultConstraint M F)
-  fixI = record { showM = \ fx ->  {! CExM fx >>= ?  !} }
+  tupI : {{sha : Show A}} -> {{shb : Show B}} -> Show (A -x- B)
+  tupI = ShowC \ (x , y) -> "(" ++s show x ++s " , "++s show y ++s ")"
 
-  defAsmI : {{cvm : ConstrVarMonad defaultConstraint M V}} -> defaultConstraint $ defaultConstrAsmContTupF V (CFixM defaultConstraint M (defaultConstrAsmContTupF V) )
-  defAsmI {{cvm}} = {!!}
+  fixI : Show (CFixM defaultConstraint M F)
+  fixI = ShowC (const "#CFixM#")
+
+  defAsmI : {{forall {A} -> Show (V A)}} -> Show $ defaultConstrAsmContTupF V (CFixM defaultConstraint M (defaultConstrAsmContTupF V) )
+  defAsmI = ShowC (concats o map (concats o map \ (T , v , p , k) -> show (v , p) ))
+
+  showDefReason : {{sva : forall {A} -> Show (V A)}} -> Show $ (ConstrAsmCont defaultConstraint defCont V)
+  showDefReason = ShowC $ concats o (intersperse " ^ ") o map \ (T , v , p , k) -> "(" ++s show p ++s " = " ++s show v ++s ")"
+
+  showDefReasons : {{sva : forall {A} -> Show (V A)}} -> Show $ defCont (ConstrAsmCont defaultConstraint defCont V)
+  showDefReasons = ShowC $ concats o (intersperse " V\n ") o map show
+
+  showNatPtr : Show (NatPtr A)
+  showNatPtr = ShowC (("p" ++s_) o showN o idx)
 
 defaultConstrVarMonad : ConstrVarMonad defaultConstraint defaultVarMonadStateM NatPtr
 defaultConstrVarMonad = record {
@@ -213,7 +223,8 @@ defaultConstrVarMonad = record {
   where open BaseVarMonad (defaultVarMonad)
 
 instance
-  dcvm = defaultConstrVarMonad
+  private
+    dcvm = defaultConstrVarMonad
 
 instance
   private
@@ -234,7 +245,7 @@ defaultConstrCLVarMonadV : Set -> Set
 defaultConstrCLVarMonadV = ConstrAsmPtr defaultConstraint defaultVarMonadStateM NatPtr defCont
 
 defaultConstrCLVarMonad : ConstrCLVarMonad defaultConstraint defaultConstrCLVarMonadStateM defaultConstrCLVarMonadV defCont
-defaultConstrCLVarMonad = ConstrVarMonad=>ConstrCLVarMonad defaultConstrVarMonad [] {{mfunc = cmFuncListAsm }} {{fixK = fixI {{cmfunc = cmFuncListAsm }} }}
+defaultConstrCLVarMonad = ConstrVarMonad=>ConstrCLVarMonad defaultConstrVarMonad [] {{mfunc = cmFuncListAsm }} {{ffixK = defaultFunctionsI {{sha = defAsmI {V = NatPtr} }} }}
 
 runDefConstrTrackVarMonad : defaultConstrCLVarMonadStateM A -> A
 runDefConstrTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
