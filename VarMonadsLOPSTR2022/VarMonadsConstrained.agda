@@ -14,6 +14,17 @@ private
     K C M F V : Set -> Set
 
 ----------------------------------------------------------------------
+--Constrained VarMonads
+----------------------------------------------------------------------
+
+record ConstrVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
+  field
+    new : {{k : K A}} -> A -> M (V A)
+    get : {{k : K A}} -> V A -> M A
+    write : {{k : K A}} -> V A -> A -> M T
+    overlap {{mon}} : Monad M
+
+----------------------------------------------------------------------
 --Constrained Algebrae
 ----------------------------------------------------------------------
 
@@ -38,11 +49,11 @@ instance
       f nil -> return nil;
       f (lcons x xs) -> f xs >>= return o lcons x} }
 
-  BVM-CMFunctor : {{bvm : BaseVarMonad M V}} -> {{mfunc : MFunctor M F}} -> CMFunctor K M (F o V)
-  BVM-CMFunctor {{bvm = bvm}} {{mfunc = mfunc}} = record { _<$CM>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$M>' ls }
+  BVM-CMFunctor : {{cvm : ConstrVarMonad K M V}} -> {{mfunc : CMFunctor K M F}} -> {{kptr : forall {A} -> K (V A)}} -> CMFunctor K M (F o V)
+  BVM-CMFunctor {{cvm = cvm}} {{mfunc = mfunc}} = record { _<$CM>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$CM>' ls }
     where
-      open BaseVarMonad bvm
-      open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
+      open ConstrVarMonad cvm
+      open CMFunctor mfunc using () renaming (_<$CM>_ to _<$CM>'_)
 
 
 
@@ -65,13 +76,6 @@ CExM {{mfunc = mfunc}} = CfoldM ((return o CInM {{mfunc = mfunc}}) <$CM>'_)
 ----------------------------------------------------------------------
 --Constrained Constructions
 ----------------------------------------------------------------------
-
-record ConstrVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) : Set where
-  field
-    new : {{k : K A}} -> A -> M (V A)
-    get : {{k : K A}} -> V A -> M A
-    write : {{k : K A}} -> V A -> A -> M T
-    overlap {{mon}} : Monad M
 
 ConstrAsmCont : (K : Set -> Set) -> (C : Set -> Set) -> (V : Set -> Set) -> Set
 ConstrAsmCont K C V = C (Sigma Set \ A -> (A -x- V A -x- K A))
