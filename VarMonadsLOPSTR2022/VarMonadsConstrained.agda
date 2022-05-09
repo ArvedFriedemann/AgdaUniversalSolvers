@@ -171,15 +171,39 @@ ConstrVarMonad=>ConstrCLVarMonad {K} {M} {V = V} {C = C} cvm mpty {{mfunc}} {{fi
 --default implementations
 -------------------------------------------------------------------
 
+record Show (A : Set) : Set where
+  constructor ShowC
+  field
+    show : A -> String
+
+record DefaultFunctions (A : Set) : Set where
+  field
+    showM : {{cvm : ConstrVarMonad K M V}} ->
+      {{showI : forall {B} -> Show (V B)}} -> A -> M String
+
+open DefaultFunctions {{...}} public
+
 defaultConstraint : (A : Set) -> Set
-defaultConstraint A = T
+defaultConstraint = DefaultFunctions
+
+defaultConstrAsmContTupF : (V : Set -> Set) (R : Set) -> Set
+defaultConstrAsmContTupF V R = defCont $ ConstrAsmCont defaultConstraint defCont (\ B -> V (B -x- R))
 
 instance
-  alwaysI : defaultConstraint A
-  alwaysI = tt
-  --tupI : {{defaultConstraint A}} -> {{defaultConstraint B}} -> defaultConstraint (A -x- B)
-  --tupI = tt
+  --alwaysI : defaultConstraint A
+  --alwaysI = tt
+  tupI : {{a : defaultConstraint A}} -> {{b : defaultConstraint B}} -> defaultConstraint (A -x- B)
+  tupI = record { showM = \ (x , y) -> do
+        a' <- showM x
+        b' <- showM y
+        return $ "(" ++s a' ++s " , "++s b' ++s ")" }
 
+  fixI : {{ff : defaultConstraint (F (CFixM defaultConstraint M F))}} ->
+          {{cmfunc : CMFunctor defaultConstraint M F}} -> defaultConstraint (CFixM defaultConstraint M F)
+  fixI = record { showM = \ fx ->  {! CExM fx >>= ?  !} }
+
+  defAsmI : {{cvm : ConstrVarMonad defaultConstraint M V}} -> defaultConstraint $ defaultConstrAsmContTupF V (CFixM defaultConstraint M (defaultConstrAsmContTupF V) )
+  defAsmI {{cvm}} = {!!}
 
 defaultConstrVarMonad : ConstrVarMonad defaultConstraint defaultVarMonadStateM NatPtr
 defaultConstrVarMonad = record {
@@ -195,9 +219,8 @@ instance
   private
     cmFuncListAsm :
       {{cvm : ConstrVarMonad K M V}} ->
-      {{k : K (FixM M (\ R -> List $ ConstrAsmCont K List (\B -> V (B -x- R)))) }} ->
       {{ktup : forall {A} {B} -> {{ka : K A}} -> {{kb : K B}} -> K (A -x- B) }} ->
-      CMFunctor K M (\ R -> List $ ConstrAsmCont K List (\B -> V (B -x- R)))
+      CMFunctor K M (\ R -> defCont $ ConstrAsmCont K defCont (\B -> V (B -x- R)))
     cmFuncListAsm {{cvm = cvm}} {{ktup = ktup}} = record { _<$CM>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p , k) -> snd <$> get {{k = ktup {{ka = k}} }} p >>= f >>= \ b -> new {{ k = ktup {{ka = k}} }} (v , b) >>= \ p' -> return (A , v , p' , k )) lst) }
       where open ConstrVarMonad cvm
 
@@ -211,7 +234,7 @@ defaultConstrCLVarMonadV : Set -> Set
 defaultConstrCLVarMonadV = ConstrAsmPtr defaultConstraint defaultVarMonadStateM NatPtr defCont
 
 defaultConstrCLVarMonad : ConstrCLVarMonad defaultConstraint defaultConstrCLVarMonadStateM defaultConstrCLVarMonadV defCont
-defaultConstrCLVarMonad = ConstrVarMonad=>ConstrCLVarMonad defaultConstrVarMonad [] {{mfunc = cmFuncListAsm {{k = tt}} }} {{fixK = tt }} {{ffixK = tt }} {{ktup = tt}}
+defaultConstrCLVarMonad = ConstrVarMonad=>ConstrCLVarMonad defaultConstrVarMonad [] {{mfunc = cmFuncListAsm }} {{fixK = fixI {{cmfunc = cmFuncListAsm }} }}
 
 runDefConstrTrackVarMonad : defaultConstrCLVarMonadStateM A -> A
 runDefConstrTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
