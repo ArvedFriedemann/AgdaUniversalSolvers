@@ -263,7 +263,11 @@ BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty {{mfunc}} {{mplus}} = reco
     open TrackVarMonad trackM
     open SpecVarMonad lspec renaming (get to getR; write to writeR)
     putAssignments : AsmPtr M V C A -> StateT (AsmCont C (AsmPtr M V C)) M (AsmPtr M V C A)
-    putAssignments p = getCurrAssignments >>= writeR p o singleton >> return p
+    putAssignments p = do
+        asm <- getCurrAssignments
+        asm' <- getR p
+        writeR p (asm' <|> singleton asm)
+        return p
       where open MonadPlus mplus using () renaming (return to singleton)
 
 
