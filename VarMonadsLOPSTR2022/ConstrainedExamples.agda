@@ -85,9 +85,18 @@ anyOptiM {{cvm = cvm}} = CfoldM \ {
     (lcons false xs) -> get xs}
   where open ConstrVarMonad cvm
 
-
-
-
+{-# TERMINATING #-}
+anyOptiM' : {{cvm : ConstrVarMonad K M V}} ->
+  {{lfvc : ListFVConstraints K V Bool}} ->
+  {{klst : K (CFixM K M (ListF Bool o V))}} ->
+  --{{kb : K Bool}} ->
+  CFixM K M ((ListF Bool) o V) -> M Bool
+anyOptiM' {{cvm = cvm}} lst = CExM {{LVMFunc {A = Bool} }} lst >>= \{
+  nil -> return false;
+  (lcons true xs) -> return true;
+  (lcons false xs) -> get xs >>= anyOptiM'
+  }
+  where open ConstrVarMonad cvm
 
 
 
@@ -130,11 +139,16 @@ test1 = runDefConstrTrackVarMonad $ do
   write pw 9
   show {{showDefReasons}} <$> getReasons pw
 
+anyTest : Bool
 anyTest = runDefConstrTrackVarMonad $ do
   false ::VM true ::VM false ::VM []VM >>= anyOptiM
 
 anyTest2 = runDefConstrTrackVarMonad $ do
   false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= (show {{showDefReasons}} <$>_) o getReasons
+
+anyTest22 = runDefConstrTrackVarMonad $ do
+  res <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons
+  return $ (map o map) (\ (T , v , p , k) -> idx p) res
 
 
 open import Agda.Builtin.TrustMe
@@ -144,10 +158,11 @@ trustVal {A} {B} a with primTrustMe {x = A} {y = B}
 ...| refl = a
 
 anyTest3 = runDefConstrTrackVarMonad $ do
-  res <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons
+  --res <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons
+  res <- true ::VM []VM >>= new >>= get >>= anyOptiM' >>= new >>= getReasons
   sequenceM $ map ((sequenceM o map \ (T , v , p , k) -> (idx p ,_) <$> toList (trustVal v) ) o take 3) res
 
 anyTest4 = runDefConstrTrackVarMonad $ do
-  res <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new >>= getReasons
+  res <- false ::VM true ::VM false ::VM false ::VM []VM >>= new >>= get >>= anyOptiM >>= new >>= getReasons
   --false ::VM []VM >>= CExM {{LVMFunc}}
   sequenceM $ map ((sequenceM o map \ (T , v , p , k) -> (idx p ,_) <$> CExM {{LVMFunc {A = Bool} }} (trustVal v) ) o take 3) res
