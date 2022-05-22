@@ -13,6 +13,21 @@ private
     A B D S : Set
     K C M F V : Set -> Set
 
+{-# NO_POSITIVITY_CHECK #-}
+data FixR (F : Set -> Set) : Set where
+  In : F (FixR F) -> FixR F
+
+{-# TERMINATING #-}
+anyR : {{cvm : ConstrVarMonad K M V}} -> {{K (FixR $ ListF Bool o V)}} -> FixR (ListF Bool o V) -> M Bool
+anyR {{cvm = cvm}} (In nil) = return false
+anyR {{cvm = cvm}} (In (lcons true xs)) = return true
+anyR {{cvm = cvm}} (In (lcons false xs)) = get xs >>= anyR
+  where open ConstrVarMonad cvm
+
+
+
+
+
 record ListFVConstraints (K : Set -> Set) (V : Set -> Set) (A : Set) : Set where
   field
     {{kptr}} : forall {A} -> K (V A)
@@ -125,6 +140,9 @@ instance
   showList : {{s : Show A}} -> Show (List A)
   showList = ShowC ((\ x -> "[" ++s x ++s "]") o concats o intersperse " , " o map show)
 
+  showFixR : {{Show (F (FixR F))}} -> Show (FixR F)
+  showFixR = ShowC \{(In x) -> show x}
+
 test1 : String
 test1 = runDefConstrTrackVarMonad $ do
   p <- new 5
@@ -166,3 +184,12 @@ anyTest4 = runDefConstrTrackVarMonad $ do
   res <- false ::VM true ::VM false ::VM false ::VM []VM >>= new >>= get >>= anyOptiM >>= new >>= getReasons
   --false ::VM []VM >>= CExM {{LVMFunc}}
   sequenceM $ map ((sequenceM o map \ (T , v , p , k) -> (idx p ,_) <$> CExM {{LVMFunc {A = Bool} }} (trustVal v) ) o take 3) res
+
+--anyRTest : Bool
+anyRTest = runDefConstrTrackVarMonad $ do
+  lst0 <- new (In nil)
+  lst1 <- new (In $ lcons false lst0)
+  lst2 <- new (In $ lcons true lst1)
+  lst3 <- new (In $ lcons false lst2)
+  res <- get lst3 >>= anyR >>= new
+  (show {{showDefReasons}}) <$> (getReasons res)
