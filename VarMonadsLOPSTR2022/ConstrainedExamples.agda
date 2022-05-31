@@ -13,6 +13,7 @@ private
     A B D S : Set
     K C M F V : Set -> Set
 
+{-
 {-# NO_POSITIVITY_CHECK #-}
 data FixR (F : Set -> Set) : Set where
   In : F (FixR F) -> FixR F
@@ -23,9 +24,31 @@ anyR {{cvm = cvm}} (In nil) = return false
 anyR {{cvm = cvm}} (In (lcons true xs)) = return true
 anyR {{cvm = cvm}} (In (lcons false xs)) = get xs >>= anyR
   where open ConstrVarMonad cvm
+-}
 
+MTCAlgebra : (F : Set -> Set) -> (A : Set) -> Set
+MTCAlgebra F A = forall R -> (R -> A) -> F R -> A
 
+MTCFix : (F : Set -> Set) -> Set
+MTCFix F = forall A -> MTCAlgebra F A -> A
 
+MTCFold : MTCAlgebra F A -> MTCFix F -> A
+MTCFold {A = A} alg fa = fa A alg
+
+MTCIn : F (MTCFix F) -> MTCFix F
+MTCIn f _ alg = alg _ (MTCFold alg) f
+
+MTCEx : {{Functor F}} -> MTCFix F -> F (MTCFix F)
+MTCEx {{func}} = MTCFold \ R [[_]] f -> MTCIn o [[_]] <$>' f
+  where open Functor func renaming (_<$>_ to _<$>'_)
+
+anyMTCBVM : {{cvm : BaseVarMonad M V}} ->
+  MTCFix (ListF Bool o V) -> M Bool
+anyMTCBVM {{cvm}} = MTCFold \{
+    R [[_]] nil -> return false ;
+    R [[_]] (lcons true _) -> return true ;
+    R [[_]] (lcons false xs) -> get xs >>= [[_]] }
+  where open BaseVarMonad cvm
 
 
 record ListFVConstraints (K : Set -> Set) (V : Set -> Set) (A : Set) : Set where
@@ -140,8 +163,8 @@ instance
   showList : {{s : Show A}} -> Show (List A)
   showList = ShowC ((\ x -> "[" ++s x ++s "]") o concats o intersperse " , " o map show)
 
-  showFixR : {{Show (F (FixR F))}} -> Show (FixR F)
-  showFixR = ShowC \{(In x) -> show x}
+  --showFixR : {{Show (F (FixR F))}} -> Show (FixR F)
+  --showFixR = ShowC \{(In x) -> show x}
 
 test1 : String
 test1 = runDefConstrTrackVarMonad $ do
@@ -185,6 +208,7 @@ anyTest4 = runDefConstrTrackVarMonad $ do
   --false ::VM []VM >>= CExM {{LVMFunc}}
   sequenceM $ map ((sequenceM o map \ (T , v , p , k) -> (idx p ,_) <$> CExM {{LVMFunc {A = Bool} }} (trustVal v) ) o take 3) res
 
+{-
 --anyRTest : Bool
 anyRTest = runDefConstrTrackVarMonad $ do
   lst0 <- new (In nil)
@@ -193,3 +217,4 @@ anyRTest = runDefConstrTrackVarMonad $ do
   lst3 <- new (In $ lcons false lst2)
   res <- get lst3 >>= anyR >>= new
   (show {{showDefReasons}}) <$> (getReasons res)
+-}
