@@ -26,29 +26,33 @@ anyR {{cvm = cvm}} (In (lcons false xs)) = get xs >>= anyR
   where open ConstrVarMonad cvm
 -}
 
-MTCAlgebra : (F : Set -> Set) -> (A : Set) -> Set
-MTCAlgebra F A = forall R -> (R -> A) -> F R -> A
+KMTCAlgebra : (K : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
+KMTCAlgebra K F A = forall R -> {{k : K R}} -> (R -> A) -> F R -> A
 
-MTCFix : (F : Set -> Set) -> Set
-MTCFix F = forall A -> MTCAlgebra F A -> A
+KMTCFix : (K : Set -> Set) -> (F : Set -> Set) -> Set
+KMTCFix K F = forall A -> {{k : K A}} -> KMTCAlgebra K F A -> A
 
-MTCFold : MTCAlgebra F A -> MTCFix F -> A
-MTCFold {A = A} alg fa = fa A alg
+KMTCFold : {{k : K A}} -> KMTCAlgebra K F A -> KMTCFix K F -> A
+KMTCFold {A = A} alg fa = fa A alg
 
-MTCIn : F (MTCFix F) -> MTCFix F
-MTCIn f _ alg = alg _ (MTCFold alg) f
+KMTCIn : {{kf : K (KMTCFix K F)}} -> F (KMTCFix K F) -> KMTCFix K F
+KMTCIn f _ alg = alg _ (KMTCFold alg) f
 
-MTCEx : {{Functor F}} -> MTCFix F -> F (MTCFix F)
-MTCEx {{func}} = MTCFold \ R [[_]] f -> MTCIn o [[_]] <$>' f
+KMTCEx : {{func : Functor F}} ->
+  {{kf : K (KMTCFix K F)}} ->
+  {{kff : K (F (KMTCFix K F))}} ->
+  KMTCFix K F -> F (KMTCFix K F)
+KMTCEx {{func}} = KMTCFold \ R [[_]] f -> KMTCIn o [[_]] <$>' f
   where open Functor func renaming (_<$>_ to _<$>'_)
 
-anyMTCBVM : {{cvm : BaseVarMonad M V}} ->
-  MTCFix (ListF Bool o V) -> M Bool
-anyMTCBVM {{cvm}} = MTCFold \{
+anyMTCBVM : {{cvm : ConstrVarMonad K M V}} ->
+  {{kmb : K (M Bool)}} ->
+  KMTCFix K (ListF Bool o V) -> M Bool
+anyMTCBVM {{cvm}} = KMTCFold \{
     R [[_]] nil -> return false ;
     R [[_]] (lcons true _) -> return true ;
     R [[_]] (lcons false xs) -> get xs >>= [[_]] }
-  where open BaseVarMonad cvm
+  where open ConstrVarMonad cvm
 
 
 record ListFVConstraints (K : Set -> Set) (V : Set -> Set) (A : Set) : Set where
@@ -171,8 +175,8 @@ instance
 
   funcListF = functorListF
 
-  showMTCFixList : {{Show A}} -> Show (MTCFix (ListF A))
-  showMTCFixList = ShowC $ MTCFold \{
+  showMTCFixList : {{ks : K String}} -> {{Show A}} -> Show (KMTCFix K (ListF A))
+  showMTCFixList = ShowC $ KMTCFold \{
     R [[_]] nil -> "[]";
     R [[_]] (lcons x xs) -> show x ++s " :: " ++s [[ xs ]]}
 
