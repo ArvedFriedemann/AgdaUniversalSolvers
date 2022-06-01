@@ -150,6 +150,9 @@ instance
 
 open ConstrCLVarMonad defaultConstrCLVarMonad
 
+functorListF : Functor (ListF A)
+functorListF = record { _<$>_ = \{ f nil -> nil; f (lcons x xs) -> lcons x (f xs)}}
+
 instance
   showNat : Show Nat
   showNat = ShowC showN
@@ -165,6 +168,13 @@ instance
 
   --showFixR : {{Show (F (FixR F))}} -> Show (FixR F)
   --showFixR = ShowC \{(In x) -> show x}
+
+  funcListF = functorListF
+
+  showMTCFixList : {{Show A}} -> Show (MTCFix (ListF A))
+  showMTCFixList = ShowC $ MTCFold \{
+    R [[_]] nil -> "[]";
+    R [[_]] (lcons x xs) -> show x ++s " :: " ++s [[ xs ]]}
 
 test1 : String
 test1 = runDefConstrTrackVarMonad $ do
@@ -217,4 +227,16 @@ anyRTest = runDefConstrTrackVarMonad $ do
   lst3 <- new (In $ lcons false lst2)
   res <- get lst3 >>= anyR >>= new
   (show {{showDefReasons}}) <$> (getReasons res)
+-}
+
+{-}
+anyMTCTest : String
+anyMTCTest = runDefConstrTrackVarMonad $ do
+  lst0 <- new (MTCIn (nil {A = Bool}))
+  lst1 <- new (MTCIn $ lcons false lst0)
+  lst2 <- new (MTCIn $ lcons true lst1)
+  lst3 <- new (MTCIn $ lcons false lst2)
+  res <- get lst3
+  return $ show res
+  --(show {{showDefReasons}}) <$> (getReasons res)
 -}
