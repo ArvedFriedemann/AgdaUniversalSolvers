@@ -30,13 +30,13 @@ KMTCAlgebra : (K : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
 KMTCAlgebra K F A = forall R -> {{k : K R}} -> (R -> A) -> F R -> A
 
 KMTCFix : (K : Set -> Set) -> (F : Set -> Set) -> Set
-KMTCFix K F = forall A -> {{k : K A}} -> KMTCAlgebra K F A -> A
+KMTCFix K F = forall A -> K A -> KMTCAlgebra K F A -> A
 
 KMTCFold : {{k : K A}} -> KMTCAlgebra K F A -> KMTCFix K F -> A
-KMTCFold {A = A} alg fa = fa A alg
+KMTCFold {A = A} {{k = k}} alg fa = fa A k alg
 
 KMTCIn : {{kf : K (KMTCFix K F)}} -> F (KMTCFix K F) -> KMTCFix K F
-KMTCIn f _ alg = alg _ (KMTCFold alg) f
+KMTCIn f _ k alg = alg _ (KMTCFold {{k = k}} alg) f
 
 KMTCEx : {{func : Functor F}} ->
   {{kf : K (KMTCFix K F)}} ->
@@ -233,14 +233,26 @@ anyRTest = runDefConstrTrackVarMonad $ do
   (show {{showDefReasons}}) <$> (getReasons res)
 -}
 
-{-}
-anyMTCTest : String
+
+[]MMTC : {{cvm : ConstrVarMonad K M V}} ->
+  {{klst : K (KMTCFix K (ListF A o V))}} ->
+  KMTCFix K (ListF A o V)
+[]MMTC = KMTCIn nil
+
+
+_::MMTC_ : {{cvm : ConstrVarMonad K M V}} ->
+  {{klst : K (KMTCFix K (ListF A o V))}} ->
+  A -> V $ KMTCFix K (ListF A o V) -> KMTCFix K (ListF A o V)
+_::MMTC_ x xs = KMTCIn (lcons x xs)
+
+
+anyMTCTest : Bool
 anyMTCTest = runDefConstrTrackVarMonad $ do
-  lst0 <- new (MTCIn (nil {A = Bool}))
-  lst1 <- new (MTCIn $ lcons false lst0)
-  lst2 <- new (MTCIn $ lcons true lst1)
-  lst3 <- new (MTCIn $ lcons false lst2)
-  res <- get lst3
-  return $ show res
+  lst0 <- new { A = KMTCFix defaultConstraint (ListF Bool o defaultCLVarMonadV) } []MMTC
+  return true
+  --lst1 <- new (KMTCIn $ lcons false lst0)
+  --lst2 <- new (KMTCIn $ lcons true lst1)
+  --lst3 <- new (KMTCIn $ lcons false lst2)
+  --res <- get lst3
+  --return $ show res
   --(show {{showDefReasons}}) <$> (getReasons res)
--}
