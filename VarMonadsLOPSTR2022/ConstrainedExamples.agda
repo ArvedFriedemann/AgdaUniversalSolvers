@@ -118,6 +118,15 @@ toList = foldBVM {{mfunc = ListF-CMFunctor}} \{
   (lcons x xs) -> x :: xs }
 
 
+toListMTC : {{cvm : ConstrVarMonad K M V}} ->
+  {{kmla : K (M (List A))}} ->
+  KMTCFix K (ListF A o V) -> M (List A)
+toListMTC {{cvm}} = KMTCFold \ {
+    R [[_]] nil -> return [] ;
+    R [[_]] (lcons x xs) -> (x ::_) <$> (get xs >>= [[_]])}
+  where open ConstrVarMonad cvm
+
+
 anyOptiM : {{cvm : ConstrVarMonad K M V}} ->
   {{kb : K Bool}} ->
   CFixM K M ((ListF Bool) o V) -> M Bool
@@ -174,11 +183,17 @@ instance
   --showFixR = ShowC \{(In x) -> show x}
 
   funcListF = functorListF
-
+  {-}
   showMTCFixList : {{ks : K String}} -> {{Show A}} -> Show (KMTCFix K (ListF A))
   showMTCFixList = ShowC $ KMTCFold \{
     R [[_]] nil -> "[]";
     R [[_]] (lcons x xs) -> show x ++s " :: " ++s [[ xs ]]}
+    -}
+  showMTCFix : {F : Set -> Set} -> Show (KMTCFix K F)
+  showMTCFix = ShowC $ const "#KMTCFix"
+
+  --showMBool : Show (defaultCLVarMonadStateM Bool)
+  --showMBool = ShowC $ const "#MBool"
 
 test1 : String
 test1 = runDefConstrTrackVarMonad $ do
@@ -246,13 +261,22 @@ _::MMTC_ : {{cvm : ConstrVarMonad K M V}} ->
 _::MMTC_ x xs = KMTCIn (lcons x xs)
 
 
-anyMTCTest : Bool
+--anyMTCTest : Bool
 anyMTCTest = runDefConstrTrackVarMonad $ do
-  lst0 <- new { A = KMTCFix defaultConstraint (ListF Bool o defaultCLVarMonadV) } []MMTC
-  return true
-  --lst1 <- new (KMTCIn $ lcons false lst0)
-  --lst2 <- new (KMTCIn $ lcons true lst1)
-  --lst3 <- new (KMTCIn $ lcons false lst2)
-  --res <- get lst3
-  --return $ show res
-  --(show {{showDefReasons}}) <$> (getReasons res)
+    --t <- new ([]MMTC {{cvm = ConstrCLVarMonad.cvm defaultConstrCLVarMonad}})
+    lst0 <- new ([]MMTC {A = Bool})
+    lst1 <- new (false ::MMTC lst0)
+    lst2 <- new (true ::MMTC lst1)
+    lst3 <- new (false ::MMTC lst2)
+    get lst3 >>= anyMTCBVM {{kmb = record {showi = showMA } }} -- >>= toListMTC
+    --(show {{showDefReasons}}) <$> (getReasons res)
+  where
+    instance
+      showStateT : Show (StateT S M A)
+      showStateT = ShowC $ const "#StateTMon"
+
+      showLst : Show (List A)
+      showLst = ShowC $ const "#StdListA"
+
+      showMA : Show (defaultConstrCLVarMonadStateM A)
+      showMA = ShowC $ const "#M(A)"
