@@ -183,13 +183,17 @@ instance
   --showFixR = ShowC \{(In x) -> show x}
 
   funcListF = functorListF
-  {-}
-  showMTCFixList : {{ks : K String}} -> {{Show A}} -> Show (KMTCFix K (ListF A))
-  showMTCFixList = ShowC $ KMTCFold \{
-    R [[_]] nil -> "[]";
-    R [[_]] (lcons x xs) -> show x ++s " :: " ++s [[ xs ]]}
-    -}
-  showMTCFix : {F : Set -> Set} -> Show (KMTCFix K F)
+
+{-}
+  showMTCFix : {F : Set -> Set} ->
+    {{func : Functor F}} ->
+    {{sf : Show (F (KMTCFix K F)) }} ->
+    {{kf : K (KMTCFix K F)}} ->
+    {{kff : K (F (KMTCFix K F))}} ->
+    Show (KMTCFix K F)
+  showMTCFix = ShowC $ show o KMTCEx
+-}
+  showMTCFix : Show (KMTCFix K F)
   showMTCFix = ShowC $ const "#KMTCFix"
 
   --showMBool : Show (defaultCLVarMonadStateM Bool)
@@ -264,12 +268,12 @@ _::MMTC_ x xs = KMTCIn (lcons x xs)
 --anyMTCTest : Bool
 anyMTCTest = runDefConstrTrackVarMonad $ do
     --t <- new ([]MMTC {{cvm = ConstrCLVarMonad.cvm defaultConstrCLVarMonad}})
-    lst0 <- new ([]MMTC {A = Bool})
+    lst0 <- new {- A = KMTCFix defaultConstraint (ListF Bool o defaultCLVarMonadV) -} ([]MMTC {A = Bool})
     lst1 <- new (false ::MMTC lst0)
     lst2 <- new (true ::MMTC lst1)
     lst3 <- new (false ::MMTC lst2)
-    get lst3 >>= anyMTCBVM {{kmb = record {showi = showMA } }} -- >>= toListMTC
-    --(show {{showDefReasons}}) <$> (getReasons res)
+    res <- get lst3 >>= anyMTCBVM {{kmb = record {showi = showMA } }} >>= new -- >>= toListMTC
+    (show {{showDefReasons}}) <$> (getReasons res)
   where
     instance
       showStateT : Show (StateT S M A)
@@ -280,3 +284,8 @@ anyMTCTest = runDefConstrTrackVarMonad $ do
 
       showMA : Show (defaultConstrCLVarMonadStateM A)
       showMA = ShowC $ const "#M(A)"
+{-}
+      showListFPtr : {sh : Show A} -> {sv : forall {B} -> Show (V B)} -> {C : Set} ->
+        Show (ListF A (V C))
+      showListFPtr = {!!}
+-}
