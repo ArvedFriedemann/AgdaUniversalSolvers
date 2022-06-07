@@ -210,10 +210,10 @@ instance
   defAsmI : {{forall {A} -> Show (V A)}} -> Show $ defaultConstrAsmContTupF V (CFixM defaultConstraint M (defaultConstrAsmContTupF V) )
   defAsmI = ShowC (concats o map (concats o map \ (T , v , p , k) -> show (v , p) ))
 
-  showDefReason : {{sva : forall {A} -> Show (V A)}} -> Show $ (ConstrAsmCont defaultConstraint defCont V)
+  showDefReason : {{sva : forall {A} -> Show (V A)}} -> Show $ (ConstrAsmCont defaultConstraint List V)
   showDefReason = ShowC $ concats o (intersperse " ^ ") o map \ (T , v , p , k) -> "(" ++s show p ++s " = " ++s show v ++s ")"
 
-  showDefReasons : {{sva : forall {A} -> Show (V A)}} -> Show $ defCont (ConstrAsmCont defaultConstraint defCont V)
+  showDefReasons : {{sva : forall {A} -> Show (V A)}} -> Show $ List (ConstrAsmCont defaultConstraint List V)
   showDefReasons = ShowC $ concats o (intersperse " V\n ") o map show
 
   showNatPtr : Show (NatPtr A)

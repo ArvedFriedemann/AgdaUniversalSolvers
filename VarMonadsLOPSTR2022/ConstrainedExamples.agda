@@ -36,7 +36,7 @@ KMTCFold : {{k : K A}} -> KMTCAlgebra K F A -> KMTCFix K F -> A
 KMTCFold {A = A} {{k = k}} alg fa = fa A k alg
 
 KMTCIn : {{kf : K (KMTCFix K F)}} -> F (KMTCFix K F) -> KMTCFix K F
-KMTCIn f _ k alg = alg _ (KMTCFold {{k = k}} alg) f
+KMTCIn f R k alg = alg _ (KMTCFold {{k = k}} alg) f
 
 KMTCEx : {{func : Functor F}} ->
   {{kf : K (KMTCFix K F)}} ->
@@ -44,6 +44,15 @@ KMTCEx : {{func : Functor F}} ->
   KMTCFix K F -> F (KMTCFix K F)
 KMTCEx {{func}} = KMTCFold \ R [[_]] f -> KMTCIn o [[_]] <$>' f
   where open Functor func renaming (_<$>_ to _<$>'_)
+
+KFixT : (K : Set -> Set) -> (F : Set -> Set) -> Set
+KFixT K F = F (KMTCFix K F) -x- KMTCFix K F
+
+KFoldT : {{k : K A}} -> KMTCAlgebra K F A -> KFixT K F -> A
+KFoldT {A = A} {{k = k}} alg (_ , fa) = fa A k alg
+
+--KInT : {{kf : K (KMTCFix K F)}} -> F (KFixT K F) -> KFixT K F
+--KInT f = f , \ _ k alg -> alg _ (KMTCFold {{k = k}} alg) f
 
 anyMTCBVM : {{cvm : ConstrVarMonad K M V}} ->
   {{kmb : K (M Bool)}} ->
@@ -193,8 +202,20 @@ instance
     Show (KMTCFix K F)
   showMTCFix = ShowC $ show o KMTCEx
 -}
-  showMTCFix : Show (KMTCFix K F)
-  showMTCFix = ShowC $ const "#KMTCFix"
+  --showMTCFix : Show (KMTCFix K F)
+  --showMTCFix = ShowC $ const "#KMTCFix"
+
+  showString : Show String
+  showString = ShowC id
+
+  showMTCFixListF :
+    {{sh : Show A}} ->
+    {{svr : forall {R} -> Show (V R)}} ->
+    {{ks : K String}} ->
+    Show (KMTCFix K (ListF A o V))
+  showMTCFixListF = ShowC (KMTCFold \{
+    R [[_]] nil -> "nil";
+    R [[_]] (lcons x xs) -> "lcons " ++s show x ++s " " ++s show xs })
 
   --showMBool : Show (defaultCLVarMonadStateM Bool)
   --showMBool = ShowC $ const "#MBool"
@@ -274,6 +295,7 @@ anyMTCTest = runDefConstrTrackVarMonad $ do
     lst3 <- new (false ::MMTC lst2)
     res <- get lst3 >>= anyMTCBVM {{kmb = record {showi = showMA } }} >>= new -- >>= toListMTC
     (show {{showDefReasons}}) <$> (getReasons res)
+    --return $ map show [ lst0 , lst1 , lst2 , lst3 , res ]
   where
     instance
       showStateT : Show (StateT S M A)
