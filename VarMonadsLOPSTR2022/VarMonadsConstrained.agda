@@ -115,6 +115,14 @@ record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B 
     write : {{k : K A}} -> V A -> B -> M T
     overlap {{mon}} : Monad M
 
+mergeFix :
+  {F : (Set -> Set) -> Set} ->
+  (merge : forall {V'} -> F V' -> F V' -> F V') ->
+  CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) ->
+  CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) ->
+  CFixM K M (\R -> F (\ B -> V (B -x- R) ) )
+mergeFix {K = K} merge f1 f2 A k alg = CfoldM {{k = k}} (\ x -> CfoldM {{k = k}} (\ y -> alg $ merge x y) f2) f1
+
 constrRecProdVarMonad : ConstrVarMonad K M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
   {{mfunc : CMFunctor K M (\ R -> F (\B -> V (B -x- R)))}} ->
   {{fixK : K (CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) )}} ->
