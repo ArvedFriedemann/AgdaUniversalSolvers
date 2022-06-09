@@ -293,17 +293,17 @@ anyMTCTest = runDefConstrTrackVarMonad $ do
     lst1 <- new (false ::MMTC lst0)
     lst2 <- new (true ::MMTC lst1)
     lst3 <- new (false ::MMTC lst2)
-    res <- get lst3 >>= new
-    (show {{showDefReason}}) <$> getCurrAssignments
+    --res <- get lst3 >>= new
+    --(show {{showDefReason}}) <$> getCurrAssignments
 
     {-
     TODO: Problem is, that during the CExM in the CL monad, new pointers are created.
-    That should be avoided, as it changes the pointer in the assignment 
+    That should be avoided, as it changes the pointer in the assignment
     -}
 
-    --res <- get lst3 >>= anyMTCBVM {{kmb = record {showi = showMA } }} >>= new -- >>= toListMTC
+    res <- get lst3 >>= anyMTCBVM {{kmb = record {showi = showMA } }} >>= new --anyMTCBVM {{kmb = record {showi = showMA } }} >>= new -- >>= toListMTC
     --(show (lst0 :: lst1 :: lst2 :: lst3 :: res :: []) ++s_) <$>
-      --((show {{showDefReasons}}) <$> (getReasons res))
+    ((show {{showDefReasons}}) <$> (getReasons res))
   where
     instance
       showStateT : Show (StateT S M A)

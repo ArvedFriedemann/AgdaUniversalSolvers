@@ -103,8 +103,11 @@ ConstrVarMonad=>ConstrTrackVarMonad {C = C} {{mpc = mpc}} ccvm = record {
     open ConstrVarMonad ccvm
     open MonadPlus mpc using () renaming (return to singleton)
 
+ConstrRecTupCont : (K : Set -> Set) -> (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> Set
+ConstrRecTupCont K M V F = CFixM K M (\R -> F (\ B -> V (B -x- R) ) )
+
 ConstrRecTupPtr : (K : Set -> Set) -> (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> (A : Set) -> Set
-ConstrRecTupPtr K M V F A = V $ A -x- CFixM K M (\R -> F (\ B -> V (B -x- R) ) )
+ConstrRecTupPtr K M V F A = V $ A -x- ConstrRecTupCont K M V F
 
 ConstrAsmPtr : (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) (A : Set) -> Set
 ConstrAsmPtr K M V C = ConstrRecTupPtr K M V (C o ConstrAsmCont K C)
@@ -117,11 +120,11 @@ record ConstrSpecVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (B 
 
 mergeFix :
   {F : (Set -> Set) -> Set} ->
-  (merge : forall {V'} -> F V' -> F V' -> F V') ->
-  CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) ->
-  CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) ->
-  CFixM K M (\R -> F (\ B -> V (B -x- R) ) )
-mergeFix {K = K} merge f1 f2 A k alg = CfoldM {{k = k}} (\ x -> CfoldM {{k = k}} (\ y -> alg $ merge x y) f2) f1
+  (merge : forall {V'} -> F V' -> F V' -> F V' ) ->
+  ConstrRecTupCont K M V F ->
+  ConstrRecTupCont K M V F ->
+  ConstrRecTupCont K M V F
+mergeFix {K = K} merge f1 f2 A k alg = CfoldM {{k = k}} (\ x -> CfoldM {{k = k}} (\ y -> alg $ merge x y ) f2) f1
 
 constrRecProdVarMonad : ConstrVarMonad K M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
   {{mfunc : CMFunctor K M (\ R -> F (\B -> V (B -x- R)))}} ->
@@ -129,14 +132,15 @@ constrRecProdVarMonad : ConstrVarMonad K M V -> {B : Set} -> {F : (Set -> Set) -
   {{ffixK : K (F (\ B -> V (B -x- CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) ) ) )}} ->
   {{ktup : forall {A} {B} -> {{K A}} -> {{K B}} -> K (A -x- B)}} ->
   (forall {V'} -> F V') ->
-  ConstrVarMonad K M (ConstrRecTupPtr K M V F) -x- ConstrSpecVarMonad K M (ConstrRecTupPtr K M V F) (F (ConstrRecTupPtr K M V F))
+  ConstrVarMonad K M (ConstrRecTupPtr K M V F) -x- ConstrSpecVarMonad K M (ConstrRecTupPtr K M V F) (ConstrRecTupCont K M V F)
 constrRecProdVarMonad cvm {{mfunc = mfunc}} mpty = (record {
       new = new o (_, CInM {{mfunc = mfunc}} mpty) ;
       get = (fst <$>_) o get ;
       write = \ p v -> snd <$> get p >>= \ b -> write p (v , b {-InM mpty-}) }
     ) , (record {
-      get = \ p -> snd <$> get p >>= CExM {{mfunc = mfunc}} ;
-      write = \ p v -> fst <$> get p >>= \ a -> write p (a , CInM {{mfunc = mfunc}} v) })
+      get = \ p -> snd <$> get p ;
+      --TODO this still overrides the old value...
+      write = \ p v -> fst <$> get p >>= \ a -> write p (a , v) }) --fst <$> get p >>= \ a -> write p (a , CInM {{mfunc = mfunc}} v)} )
   where open ConstrVarMonad cvm
 
 record ConstrCLVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
@@ -165,23 +169,28 @@ ConstrVarMonad=>ConstrCLVarMonad {K} {M} {V = V} {C = C} cvm mpty {{mfunc}} {{fi
       new = \ x -> new x >>= putAssignments ;
       get = get;
       write = \ p v -> putAssignments p >> write p v };
-    getReasons = getR ;
+    getReasons = \ p -> getR p >>= liftT o CExM {{mfunc = mfunc}} ; --getR ;
     getCurrAssignments = getCurrAssignments }
   where
-    vmtup = constrRecProdVarMonad cvm {B = C $ AsmCont C (AsmPtr M V C)} {F = C o ConstrAsmCont K C} {{mfunc = mfunc}} mpty
+    vmtup = constrRecProdVarMonad cvm {B = C $ ConstrAsmCont K C (ConstrAsmPtr K M V C)} {F = C o ConstrAsmCont K C} {{mfunc = mfunc}} mpty
     trackM = ConstrVarMonad=>ConstrTrackVarMonad (fst vmtup)
     lspec = liftConstrSpecVarMonad (snd vmtup)
     open ConstrVarMonad cvm using (mon)
     open ConstrTrackVarMonad trackM
     open ConstrSpecVarMonad lspec renaming (get to getR; write to writeR)
     putAssignments : {{K A}} -> ConstrAsmPtr K M V C A -> StateT (ConstrAsmCont K C (ConstrAsmPtr K M V C)) M (ConstrAsmPtr K M V C A)
-    putAssignments p = do
+    putAssignments {A = A} p = do
         asm <- getCurrAssignments
         asm' <- getR p
-        writeR p (asm' <|> singleton asm)
+        writeR p (mergeFix {V = V} {F = \V' -> C (ConstrAsmCont K C V')} mergeRes asm' (CInM {{mfunc = mfunc}} $ singleton asm))
         return p
-      where open MonadPlus mplus using () renaming (return to singleton)
-
+      where
+        open MonadPlus mplus using () renaming (return to singleton)
+        mergeRes : forall {V'} ->
+          C $ ConstrAsmCont K C V' ->
+          C $ ConstrAsmCont K C V' ->
+          C $ ConstrAsmCont K C V'
+        mergeRes = _<|>_
 
 -------------------------------------------------------------------
 --default implementations
