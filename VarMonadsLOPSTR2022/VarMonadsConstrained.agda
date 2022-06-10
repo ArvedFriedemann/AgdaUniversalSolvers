@@ -126,7 +126,7 @@ mergeFix :
   ConstrRecTupCont K M V F
 mergeFix {K = K} merge f1 f2 A k alg = CfoldM {{k = k}} (\ x -> CfoldM {{k = k}} (\ y -> alg $ merge x y ) f2) f1
 
-constrRecProdVarMonad : ConstrVarMonad K M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
+constrRecProdVarMonad : ConstrVarMonad K M V -> {F : (Set -> Set) -> Set} ->
   {{mfunc : CMFunctor K M (\ R -> F (\B -> V (B -x- R)))}} ->
   {{fixK : K (CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) )}} ->
   {{ffixK : K (F (\ B -> V (B -x- CFixM K M (\R -> F (\ B -> V (B -x- R) ) ) ) ) )}} ->
@@ -146,7 +146,7 @@ constrRecProdVarMonad cvm {{mfunc = mfunc}} mpty = (record {
 record ConstrCLVarMonad (K : Set -> Set) (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
   field
     cvm : ConstrVarMonad K M V
-    getReasons : {{K A}} -> V A -> M $ C $ ConstrAsmCont K C V
+    getReasons : {{K A}} -> V A -> M $ ConstrRecTupCont K M V (C o ConstrAsmCont K C) --C $ ConstrAsmCont K C V
     getCurrAssignments : M $ ConstrAsmCont K C V
   open ConstrVarMonad cvm public
 
@@ -169,10 +169,11 @@ ConstrVarMonad=>ConstrCLVarMonad {K} {M} {V = V} {C = C} cvm mpty {{mfunc}} {{fi
       new = \ x -> new x >>= putAssignments ;
       get = get;
       write = \ p v -> putAssignments p >> write p v };
-    getReasons = \ p -> getR p >>= liftT o CExM {{mfunc = mfunc}} ; --getR ;
+    getReasons = \ p -> getR p >>= \ v -> {! lspec !}; --liftT o CExM {{mfunc = mfunc}} ; --getR ;
     getCurrAssignments = getCurrAssignments }
   where
-    vmtup = constrRecProdVarMonad cvm {B = C $ ConstrAsmCont K C (ConstrAsmPtr K M V C)} {F = C o ConstrAsmCont K C} {{mfunc = mfunc}} mpty
+    vmtup = constrRecProdVarMonad cvm
+      {F = C o ConstrAsmCont K C} {{mfunc = mfunc}} mpty
     trackM = ConstrVarMonad=>ConstrTrackVarMonad (fst vmtup)
     lspec = liftConstrSpecVarMonad (snd vmtup)
     open ConstrVarMonad cvm using (mon)
