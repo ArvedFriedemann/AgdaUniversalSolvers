@@ -136,25 +136,28 @@ trustVal {A} {B} a with primTrustMe {x = A} {y = B}
 
 --anyTest : List (AsmCont List _)
 --anyTest : List Nat
-anyTest : List $ List (Nat)
+--anyTest : List $ List (Nat)
 anyTest = runDefTrackVarMonad $ do
-  p <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new
+  lst <- false ::VM true ::VM false ::VM []VM >>= new
+  p <- get lst >>= anyOptiM >>= new
   res <- getReasons p
-  sequenceM $ map (sequenceM o map \ (T , v , d) -> return (idx d) ) res
+  --get p
+  sequenceM $ map (sequenceM o map \ {(T , v , d) -> return (idx d) }) res
 
-reasonTest : List (AsmCont List _)
+--reasonTest : List (Nat)
 reasonTest = runDefTrackVarMonad $ do
   p <- new 5
   get p
   write p 6
-  getReasons p
+  res <- getReasons p
+  sequenceM $ map (sequenceM o map \ (T , v , d) -> return (idx d) ) res
 
 --reasonRet : (AsmCont List _)
 reasonRet = runDefTrackVarMonad $ do
     p <- new 5
     get p
     get p
-    getCurrAssignments
+    (map \{(_ , _ , p) -> idx p})<$> getCurrAssignments
 
 --AsmContTest : FixM defaultCLVarMonadStateM (\ R -> defaultCLVarMonadV (List R))
 AsmContTest = runDefTrackVarMonad $ return 5 --InM <$> new {A = List (FixM defaultCLVarMonadStateM (\ R -> defaultCLVarMonadV (List R))) } []
