@@ -110,6 +110,16 @@ data ListF (A : Set) (B : Set) : Set where
   nil : ListF A B
   lcons : A -> B -> ListF A B
 
+instance
+  ListF-MTCFunctor : Functor (ListF A)
+  ListF-MTCFunctor = record { _<$>_ = \{ f nil -> nil ; f (lcons x xs) -> lcons x (f xs) } }
+  {-}
+  ListFix-Functor : Functor (\A -> Fix (ListF A))
+  ListFix-Functor = record { _<$>_ = \ f lst -> foldF
+    (\{_ [[_]] nil -> In nil ;
+       _ [[_]] (lcons x xs) -> In $ lcons (f x) [[ xs ]] }) lst  }
+       -}
+
 {-}
 mapListF : (B -> D) -> ListF A B -> ListF A D
 mapListF f nil = nil

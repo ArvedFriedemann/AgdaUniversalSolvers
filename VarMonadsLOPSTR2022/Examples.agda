@@ -20,73 +20,84 @@ open import Category.Monad.State renaming (RawMonadState to MonadState)
 --open import Function.Identity.Categorical renaming (monad to monad-identity)
 --open import Function.Identity.Instances
 
+open Functor {{...}} renaming (_<$>_ to _<$>'_)
+
 open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
-open LCat.TraversableM {{...}}
+--open LCat.TraversableM {{...}}
 
 ------------------------------------------------------
 --Initial Example Lists
 ------------------------------------------------------
 
-LVMFunc : {{bvm : BaseVarMonad M V}} -> MFunctor M (ListF A o V)
-LVMFunc {{bvm}} = BVM-MFunctor {{bvm}} {{ListF-MFunctor}}
-
-[]M : {{bvm : BaseVarMonad M V}} -> FixM M (ListF A o V)
-[]M {{bvm}} = InM {{LVMFunc}} nil
+[]M : {{bvm : BaseVarMonad M V}} -> Fix (ListF A o V)
+[]M {{bvm}} = In nil
 
 
-_::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ FixM M (ListF A o V) -> FixM M (ListF A o V)
-_::M_ {{bvm}} x xs = InM {{LVMFunc}} $ lcons x xs
+_::M_ : {{bvm : BaseVarMonad M V}} -> A -> V $ Fix (ListF A o V) -> Fix (ListF A o V)
+_::M_ {{bvm}} x xs = In $ lcons x xs
 
-[]VM : {{bvm : BaseVarMonad M V}} -> M $ FixM M (ListF A o V)
+[]VM : {{bvm : BaseVarMonad M V}} -> M $ Fix (ListF A o V)
 []VM = return []M
 
 infixr 5 _::VM_
 
-_::VM_ : {{bvm : BaseVarMonad M V}} -> A -> M $ FixM M (ListF A o V) -> M $ FixM M (ListF A o V)
+_::VM_ : {{bvm : BaseVarMonad M V}} -> A -> M $ Fix (ListF A o V) -> M $ Fix (ListF A o V)
 _::VM_ {{bvm = bvm}} x m = (x ::M_) <$> (m >>= new)
   where open BaseVarMonad bvm
 
+instance
+  Comp-Functor : {{f1 : Functor F}} -> {{f2 : Functor V}} -> Functor (F o V)
+  Comp-Functor {{f1}} {{f2}} = record { _<$>_ = \ f fva -> (f <$>2_) <$>1 fva }
+    where
+      open Functor f1 renaming (_<$>_ to _<$>1_)
+      open Functor f2 renaming (_<$>_ to _<$>2_)
+
+
 foldBVM :
   {{bvm : BaseVarMonad M V}} ->
-  {{mfunc : MFunctor M F}} ->
-  Algebra F A -> FixM M (F o V) -> M A
-foldBVM {{bvm}} {{mfunc}} alg = foldM \ f -> alg <$> (get <$M>' f)
+  {{mfunc : Functor F}} ->
+  Algebra F (M A) -> Fix (F o V) -> M A
+foldBVM {{bvm}} {{mfunc}} alg = foldF \ _ [[_]] f -> alg _ (get >=> [[_]]) f --alg <$> (get <$>' f)
   where
     open BaseVarMonad bvm
-    open MFunctor mfunc renaming (_<$M>_ to _<$M>'_)
+    open Functor mfunc renaming (_<$>_ to _<$>'_)
 
-toList : {{bvm : BaseVarMonad M V}} -> FixM M (ListF Bool o V) -> M (List Bool)
-toList = foldBVM {{mfunc = ListF-MFunctor}} \{
-  nil -> [];
-  (lcons x xs) -> x :: xs }
+toList : {{bvm : BaseVarMonad M V}} -> {{vfunc : Functor V}} ->
+  Fix (ListF Bool o V) -> M (List Bool)
+toList {V = V} = foldBVM {F = ListF Bool} {{mfunc = ListF-MTCFunctor}} \{
+  _ [[_]] nil -> return [];
+  _ [[_]] (lcons x xs) -> (x ::_) <$> [[ xs ]] }
 
-anyM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyM {{bvm = bvm}} = foldM \ {
-    nil -> return false;
-    (lcons x xs) -> (x ||_) <$> get xs }
+anyM : {{bvm : BaseVarMonad M V}} -> Fix ((ListF Bool) o V) -> M Bool
+anyM {{bvm = bvm}} = foldF \ {
+    _ [[_]] nil -> return false;
+    _ [[_]] (lcons x xs) -> (x ||_) <$> (get xs >>= [[_]]) }
   where open BaseVarMonad bvm
 
 --this reads more values than it needs to
 
-anyM' : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyM' = foldBVM {{mfunc = ListF-MFunctor}} \ {
-  nil -> false;
-  (lcons x xs) -> x || xs }
+anyM' : {{bvm : BaseVarMonad M V}} -> Fix ((ListF Bool) o V) -> M Bool
+anyM' = foldBVM {F = ListF Bool} {{mfunc = ListF-MTCFunctor}} \ {
+  _ [[_]] nil -> return false;
+  _ [[_]] (lcons x xs) -> (x ||_) <$> [[ xs ]] }
 
-anyOptiM : {{bvm : BaseVarMonad M V}} -> FixM M ((ListF Bool) o V) -> M Bool
-anyOptiM {{bvm = bvm}} = foldM \ {
-    nil -> return false;
-    (lcons true xs) -> return true;
-    (lcons false xs) -> get xs}
+anyOptiM : {{bvm : BaseVarMonad M V}} -> Fix ((ListF Bool) o V) -> M Bool
+anyOptiM {{bvm = bvm}} = foldF \ {
+    _ [[_]] nil -> return false;
+    _ [[_]] (lcons true xs) -> return true;
+    _ [[_]] (lcons false xs) -> get xs >>= [[_]] }
   where open BaseVarMonad bvm
 
 
 
 instance
-  MFunctor-TupPtr : {{bvm : BaseVarMonad M V}} -> {A : Set} -> MFunctor M (\ R -> V (List R))
-  MFunctor-TupPtr {{bvm = bvm}} = record { _<$M>_ = \ f fx -> get fx >>= \ lst -> sequenceM (map f lst) >>= new }
-    where open BaseVarMonad bvm
+  MFunctor-TupPtr : {{bvm : BaseVarMonad M V}} -> {{vfunc : Functor V}} -> {A : Set} -> Functor (\ R -> V (List R))
+  MFunctor-TupPtr {{bvm = bvm}} {{vfunc = vfunc}} = record { _<$>_ = \ f fx -> (map f) <$>v fx }
+    where
+      open BaseVarMonad bvm
+      open Functor vfunc renaming (_<$>_ to _<$>v_)
+
 
 module Temp where
   open BaseVarMonad defaultVarMonad
@@ -107,7 +118,7 @@ module Temp2 where
     false ::VM true ::VM false ::VM []VM >>= anyOptiM >> getCurrAssignments
 
   asmTest = run $ do
-    true ::VM []VM >>= toList
+    true ::VM []VM >>= toList {{vfunc = NatPtrFunctor}}
 
 
 instance
@@ -125,11 +136,11 @@ trustVal {A} {B} a with primTrustMe {x = A} {y = B}
 
 --anyTest : List (AsmCont List _)
 --anyTest : List Nat
-anyTest : List $ List (Set -x- Nat)
+anyTest : List $ List (Nat)
 anyTest = runDefTrackVarMonad $ do
   p <- false ::VM true ::VM false ::VM []VM >>= anyOptiM >>= new
   res <- getReasons p
-  sequenceM $ map (sequenceM o map \ (T , v , d) -> return (T , idx d) ) res
+  sequenceM $ map (sequenceM o map \ (T , v , d) -> return (idx d) ) res
 
 reasonTest : List (AsmCont List _)
 reasonTest = runDefTrackVarMonad $ do
