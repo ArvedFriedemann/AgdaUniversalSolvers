@@ -12,6 +12,7 @@ private
   variable
     A B D S : Set
     K C M F V : Set -> Set
+    N : (Set -> Set) -> Set -> Set
 
 ----------------------------------------------------------------------
 --Constrained VarMonads
@@ -156,6 +157,14 @@ liftConstrSpecVarMonad svm = record {
     write = \ p v -> liftT (write p v) }
   where open ConstrSpecVarMonad svm
 
+liftFix :
+  {{mon : Monad M}} ->
+  {{mt : MonadTrans N}} ->
+  {{monT : Monad (N M)}} ->
+  --{{knma : forall {A} -> {{k : K A}} -> K (N M A)}} ->
+  CFixM K M F -> CFixM K (N M) F
+liftFix {N = N} {-{knma = knma}-} f A k alg = {!!}--join (liftT {T = N} (CfoldM {{k = knma {{k = k}} }} {!   !} f)) --$ liftT {T = N} (CfoldM {{k = k}} {!   !} f)
+
 ConstrVarMonad=>ConstrCLVarMonad : ConstrVarMonad K M V ->
   (forall {A} -> C A) ->
   {{mfunc : CMFunctor K M (\ R -> C $ ConstrAsmCont K C (\B -> V (B -x- R)))}} ->
@@ -169,7 +178,7 @@ ConstrVarMonad=>ConstrCLVarMonad {K} {M} {V = V} {C = C} cvm mpty {{mfunc}} {{fi
       new = \ x -> new x >>= putAssignments ;
       get = get;
       write = \ p v -> putAssignments p >> write p v };
-    getReasons = \ p -> getR p >>= \ v -> {! lspec !}; --liftT o CExM {{mfunc = mfunc}} ; --getR ;
+    getReasons = \ p -> getR p >>= \ v -> {!!};--liftT $ CfoldM {!!} v; --liftT o CExM {{mfunc = mfunc}} ; --getR ;
     getCurrAssignments = getCurrAssignments }
   where
     vmtup = constrRecProdVarMonad cvm
