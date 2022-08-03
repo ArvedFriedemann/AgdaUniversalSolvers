@@ -18,7 +18,7 @@ open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
 open LCat.TraversableM {{...}} public
 
---open Functor {{...}} --renaming (_<$>_ to fmap)
+open Functor {{...}} renaming (_<$>_ to _<$>'_)
 --open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
 open Monad {{...}} public renaming (_⊛_ to _<*>_)
 -- hiding (_<$>_;_⊛_;pure)
@@ -92,13 +92,19 @@ anyNorm : List Bool -> Bool
 anyNorm = foldr (_||_) false
 
 Algebra : (F : Set -> Set) -> (A : Set) -> Set
-Algebra F A = F A -> A
+Algebra F A = forall R -> (R -> A) -> F R -> A
 
 Fix : (F : Set -> Set) -> Set
 Fix F = forall A -> Algebra F A -> A
 
 foldF : Algebra F A -> Fix F -> A
 foldF {A = A} alg f = f A alg
+
+In : F (Fix F) -> Fix F
+In f A alg = alg _ (foldF alg) f
+
+Ex : {{func : Functor F}} -> Fix F -> F (Fix F)
+Ex = foldF \ _ [[_]] f -> In o [[_]] <$>' f
 
 data ListF (A : Set) (B : Set) : Set where
   nil : ListF A B
@@ -127,46 +133,6 @@ anyF = foldF \ {
   nil -> false;
   (lcons x xs) -> x || xs}
 -}
----------------------------------------------------------------
---MTC with VarMonads
----------------------------------------------------------------
-
-MAlgebra : (M : Set -> Set) -> (F : Set -> Set) -> (A : Set) -> Set
-MAlgebra M F A = F A -> M A
-
-FixM : (M : Set -> Set) -> (F : Set -> Set) -> Set
-FixM M F = forall A -> MAlgebra M F A -> M A
-
-foldM : MAlgebra M F A -> FixM M F -> M A
-foldM {A = A} alg f = f A alg
-
-record MFunctor (M : Set -> Set) (F : Set -> Set) : Set where
-  field
-    _<$M>_ : (A -> M B) -> F A -> M (F B)
-    overlap {{mon}} : Monad M
-open MFunctor {{...}} public
-
-instance
-  ListF-MFunctor : {{mon : Monad M}} -> MFunctor M (ListF A)
-  ListF-MFunctor = record {  _<$M>_ = \ {
-      f nil -> return nil;
-      f (lcons x xs) -> f xs >>= return o lcons x} }
-
-  BVM-MFunctor : {{bvm : BaseVarMonad M V}} -> {{mfunc : MFunctor M F}} -> MFunctor M (F o V)
-  BVM-MFunctor {{bvm = bvm}} {{mfunc = mfunc}} = record { _<$M>_ = \ f ls -> (\ v -> get v >>= f >>= new) <$M>' ls }
-    where
-      open BaseVarMonad bvm
-      open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
-
-
-
-InM : {{mfunc : MFunctor M F}} -> F (FixM M F) -> FixM M F
-InM {{mfunc = mfunc}} fx B alg = (foldM alg <$M>' fx) >>= alg
-  where open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
-
-ExM : {{mfunc : MFunctor M F}} -> FixM M F -> M $ F (FixM M F)
-ExM {{mfunc = mfunc}} = foldM ((return o InM {{mfunc = mfunc}}) <$M>'_)
-  where open MFunctor mfunc using () renaming (_<$M>_ to _<$M>'_)
 
 
 ---------------------------------------------------------------
@@ -210,24 +176,24 @@ record SpecVarMonad (M : Set -> Set) (V : Set -> Set) (B : Set) : Set where
 
 
 RecTupPtr : (M : Set -> Set) -> (V : Set -> Set) -> (F : (Set -> Set) -> Set) -> (A : Set) -> Set
-RecTupPtr M V F A = V $ A -x- FixM M (\R -> F (\ B -> V (B -x- R) ) )
+RecTupPtr M V F A = V $ A -x- Fix (\R -> F (\ B -> V (B -x- R) ) )
 
 AsmPtr : (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) (A : Set) -> Set
---RecTupPtr M V C A = V (A -x- FixM M (\ R -> AsmCont C (\ B -> V (B -x- R)) ) )
+--RecTupPtr M V C A = V (A -x- Fix M (\ R -> AsmCont C (\ B -> V (B -x- R)) ) )
 AsmPtr M V C = RecTupPtr M V (C o AsmCont C)
 
 
 recProdVarMonad : BaseVarMonad M V -> {B : Set} -> {F : (Set -> Set) -> Set} ->
-  {{mfunc : MFunctor M (\ R -> F (\B -> V (B -x- R)))}} ->
+  {{mfunc : Functor (\ R -> F (\B -> V (B -x- R)))}} ->
   (forall {V'} -> F V') ->
   BaseVarMonad M (RecTupPtr M V F) -x- SpecVarMonad M (RecTupPtr M V F) (F (RecTupPtr M V F))
 recProdVarMonad bvm {{mfunc = mfunc}} mpty = (record {
-      new = new o (_, InM {{mfunc = mfunc}} mpty) ;
+      new = new o (_, In mpty) ;
       get = (fst <$>_) o get ;
       write = \ p v -> snd <$> get p >>= \ b -> write p (v , b {-InM mpty-}) }
     ) , (record {
-      get = \ p -> snd <$> get p >>= ExM {{mfunc = mfunc}} ;
-      write = \ p v -> fst <$> get p >>= \ a -> write p (a , InM {{mfunc = mfunc}} v) })
+      get = \ p -> Ex o snd <$> get p ;
+      write = \ p v -> fst <$> get p >>= \ a -> write p (a , In v) })
   where open BaseVarMonad bvm
 
 record CLVarMonad (M : Set -> Set) (V : Set -> Set) (C : Set -> Set) : Set where
@@ -245,7 +211,7 @@ liftSpecVarMonad svm = record {
 
 BaseVarMonad=>CLVarMonad : BaseVarMonad M V ->
   (forall {A} -> C A) ->
-  {{mfunc : MFunctor M (\ R -> C $ AsmCont C (\B -> V (B -x- R)))}} ->
+  {{mfunc : Functor (\ R -> C $ AsmCont C (\B -> V (B -x- R)))}} ->
   {{mplus : MonadPlus C}} ->
   CLVarMonad (StateT (AsmCont C (AsmPtr M V C)) M) (AsmPtr M V C) C
 BaseVarMonad=>CLVarMonad {M} {V = V} {C = C} bvm mpty {{mfunc}} {{mplus}} = record {
@@ -332,16 +298,15 @@ defaultCLVarMonadV : Set -> Set
 defaultCLVarMonadV = AsmPtr defaultVarMonadStateM NatPtr defCont
 
 instance
-    mFuncListAsm : {{bvm : BaseVarMonad M V}} -> MFunctor M (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
-    mFuncListAsm {{bvm = bvm}} = record { _<$M>_ = \ f lst -> sequenceM (map (sequenceM o map \ (A , v , p) -> snd <$> get p >>= f >>= \ b -> new (v , b) >>= \ p' -> return (A , v , p')) lst) }
-      where open BaseVarMonad bvm
+  FunkListAsm : {{vfunc : Functor V}} -> Functor (\ R -> List $ AsmCont List (\B -> V (B -x- R)))
+  FunkListAsm = record { _<$>_ = \ f lst -> (map o map) (\ (A , v , p) -> (A , v , ((\ (a , b) -> (a , f b)) <$>' p))) lst }
 
 instance
   private
     defBaseVarMonad = defaultVarMonad
 
 defaultCLVarMonad : CLVarMonad defaultCLVarMonadStateM defaultCLVarMonadV defCont
-defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad [] {{mfunc = mFuncListAsm}}
+defaultCLVarMonad = BaseVarMonad=>CLVarMonad defaultVarMonad [] {{mfunc = FunkListAsm {V = NatPtr} }}
 
 runDefTrackVarMonad : defaultCLVarMonadStateM A -> A
 runDefTrackVarMonad = runDefVarMonad o \ m -> fst <$> m []
