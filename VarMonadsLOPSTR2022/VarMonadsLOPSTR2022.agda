@@ -282,8 +282,14 @@ record NatPtr (A : Set) : Set where
   constructor ptr
   field
     idx : Nat
+    origType : Set
+    t : origType -> A
 
 open NatPtr public
+
+instance
+  NatPtrFunctor : Functor NatPtr
+  NatPtrFunctor = record { _<$>_ = \ f (ptr n A g) -> ptr n A (f o g) }
 
 defaultState : Set
 defaultState = Nat -x- Map (Sigma Set id)
@@ -295,17 +301,17 @@ open import Agda.Builtin.TrustMe
 postulate dummy : {A : Set} -> A
 
 safeLookup : NatPtr A -> Map (Sigma Set id) -> A
-safeLookup {A} (ptr p) mp with lookup p mp
-safeLookup {A} (ptr p) mp | just (B , b) with primTrustMe {x = A} {y = B}
-safeLookup {A} (ptr p) mp | just (B , b) | refl = b
-safeLookup {A} (ptr p) mp | nothing = dummy
+safeLookup (ptr p U t) mp with lookup p mp
+safeLookup (ptr p U t) mp | just (B , b) with primTrustMe {x = U} {y = B}
+safeLookup (ptr p U t) mp | just (B , b) | refl = t b --b TODO: give transformed thing
+safeLookup (ptr p U t) mp | nothing = dummy
 
 defaultVarMonadStateM : Set -> Set
 defaultVarMonadStateM = StateT defaultState Identity
 
 defaultVarMonad : BaseVarMonad defaultVarMonadStateM NatPtr
 defaultVarMonad = record {
-    new = \ {A} x -> state \ (n , mp) -> (ptr n) , (suc n , insert n (A , x) mp) ;
+    new = \ {A} x -> state \ (n , mp) -> (ptr n A id) , (suc n , insert n (A , x) mp) ;
     get = \ { {A} p -> state \ (n , mp) -> safeLookup p mp , (n , mp) } ;
     write = \ {A} p v -> state \ (n , mp) -> tt , n , (insert (idx p) (A , v) mp)
   }
