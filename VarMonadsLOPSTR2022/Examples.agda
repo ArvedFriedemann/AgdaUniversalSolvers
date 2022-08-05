@@ -56,16 +56,14 @@ instance
 
 foldBVM :
   {{bvm : BaseVarMonad M V}} ->
-  {{mfunc : Functor F}} ->
   Algebra F (M A) -> Fix (F o V) -> M A
-foldBVM {{bvm}} {{mfunc}} alg = foldF \ _ [[_]] f -> alg _ (get >=> [[_]]) f --alg <$> (get <$>' f)
+foldBVM {{bvm}} alg = foldF \ _ [[_]] f -> alg _ (get >=> [[_]]) f --alg <$> (get <$>' f)
   where
     open BaseVarMonad bvm
-    open Functor mfunc renaming (_<$>_ to _<$>'_)
 
 toList : {{bvm : BaseVarMonad M V}} -> {{vfunc : Functor V}} ->
   Fix (ListF Bool o V) -> M (List Bool)
-toList {V = V} = foldBVM {F = ListF Bool} {{mfunc = ListF-MTCFunctor}} \{
+toList {V = V} = foldBVM {F = ListF Bool} \{
   _ [[_]] nil -> return [];
   _ [[_]] (lcons x xs) -> (x ::_) <$> [[ xs ]] }
 
@@ -78,7 +76,7 @@ anyM {{bvm = bvm}} = foldF \ {
 --this reads more values than it needs to
 
 anyM' : {{bvm : BaseVarMonad M V}} -> Fix ((ListF Bool) o V) -> M Bool
-anyM' = foldBVM {F = ListF Bool} {{mfunc = ListF-MTCFunctor}} \ {
+anyM' = foldBVM {F = ListF Bool} \ {
   _ [[_]] nil -> return false;
   _ [[_]] (lcons x xs) -> (x ||_) <$> [[ xs ]] }
 
