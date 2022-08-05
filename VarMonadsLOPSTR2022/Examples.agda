@@ -87,6 +87,14 @@ anyOptiM {{bvm = bvm}} = foldF \ {
     _ [[_]] (lcons false xs) -> get xs >>= [[_]] }
   where open BaseVarMonad bvm
 
+anyOptiM' : {{bvm : BaseVarMonad M V}} -> Fix ((ListF Bool) o V) -> M Bool
+anyOptiM' {{bvm = bvm}} = foldBVM {F = ListF Bool} \ {
+    _ [[_]] nil -> return false;
+    _ [[_]] (lcons true xs) -> return true;
+    _ [[_]] (lcons false xs) -> [[ xs ]] }
+  where open BaseVarMonad bvm
+
+
 
 
 instance
@@ -132,6 +140,12 @@ trustVal : (a : A) -> B
 trustVal {A} {B} a with primTrustMe {x = A} {y = B}
 ...| refl = a
 
+showListBoolNP : Fix (ListF Bool o defaultCLVarMonadV) -> String
+showListBoolNP = foldF \ {
+  _ [[_]] nil -> "nil";
+  _ [[_]] (lcons false xs) -> "lcons false p" ++s showN (idx xs);
+  _ [[_]] (lcons true xs) -> "lcons true p" ++s showN (idx xs) }
+
 --anyTest : List (AsmCont List _)
 --anyTest : List Nat
 --anyTest : List $ List (Nat)
@@ -140,7 +154,7 @@ anyTest = runDefTrackVarMonad $ do
   p <- get lst >>= anyOptiM >>= new
   res <- getReasons p
   --get p
-  sequenceM $ map (sequenceM o map \ {(T , v , d) -> return (idx d) }) res
+  sequenceM $ map (sequenceM o map \ {(T , v , d) -> get d >>= (\v' -> return (idx d , showListBoolNP (trustVal v')) ) }) res
 
 --reasonTest : List (Nat)
 reasonTest = runDefTrackVarMonad $ do

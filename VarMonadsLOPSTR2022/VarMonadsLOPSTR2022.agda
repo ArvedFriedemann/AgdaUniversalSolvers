@@ -16,11 +16,11 @@ open import Category.Monad.State using (StateT; StateTMonad; StateTMonadState) r
 
 open import Data.List.Categorical using () renaming (monadPlus to listMonadPlus)
 import Data.List.Categorical as LCat
-open LCat.TraversableM {{...}} public
+--open LCat.TraversableM {{...}} public
 
 open Functor {{...}} renaming (_<$>_ to _<$>'_)
 --open Applicative {{...}} hiding (_<$>_) renaming (_⊛_ to _<*>_)
-open Monad {{...}} public renaming (_⊛_ to _<*>_)
+--open Monad {{...}} public renaming (_⊛_ to _<*>_)
 -- hiding (_<$>_;_⊛_;pure)
 -- open MonadModule.rawIApplicative renaming (_⊛_ to _<*>_)
 open MonadPlus {{...}} using () {- hiding (_<$>_;_⊛_;return;_>>=_;_>>_;pure;_=<<_;join) -} renaming (∅ to mzero;_∣_ to _<|>_) public
