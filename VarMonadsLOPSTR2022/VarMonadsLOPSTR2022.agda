@@ -263,6 +263,7 @@ record NatPtr (A : Set) : Set where
 
 open NatPtr public
 
+--WARNING! TODO! This breaks the write!
 instance
   NatPtrFunctor : Functor NatPtr
   NatPtrFunctor = record { _<$>_ = \ f (ptr n A g) -> ptr n A (f o g) }
