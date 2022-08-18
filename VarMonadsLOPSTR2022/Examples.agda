@@ -156,6 +156,12 @@ anyTest = runDefTrackVarMonad $ do
   --get p
   sequenceM $ map (sequenceM o map \ {(T , v , d) -> get d >>= (\v' -> return (idx d , showListBoolNP (trustVal v')) ) }) res
 
+breakPtrTest = runDefTrackVarMonad $ do
+  p <- new 5
+  let p' = (_<$>'_ {{r = NatPtrFunctor}} (\ {(x , y) -> ("blah" , y)}) p)
+  write p' "blub"
+  get p'
+
 --reasonTest : List (Nat)
 reasonTest = runDefTrackVarMonad $ do
   p <- new 5
